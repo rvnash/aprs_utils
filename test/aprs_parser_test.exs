@@ -2,7 +2,7 @@ defmodule AprsParserTest do
   use ExUnit.Case
   alias APRSUtils.AprsParser
 
-  describe "AprsParser" do
+  describe "Tests trying to get best coverage of all packet types and variants" do
     # ---------------------------------------------------------------
     test "Position w/o timestamp, no path" do
       assert {:ok, expected_result} =
@@ -659,7 +659,7 @@ defmodule AprsParserTest do
                message: %{
                  addressee: "ADDRCALL ",
                  message: "message text",
-                 message_no: 1
+                 message_no: "001"
                }
              } == expected_result
     end
@@ -680,7 +680,7 @@ defmodule AprsParserTest do
                message: %{
                  addressee: "ADDRCALL ",
                  message: "ack",
-                 message_no: 1
+                 message_no: "001"
                }
              } == expected_result
     end
@@ -701,7 +701,7 @@ defmodule AprsParserTest do
                message: %{
                  addressee: "ADDRCALL ",
                  message: "rej",
-                 message_no: 1
+                 message_no: "001"
                }
              } == expected_result
     end
@@ -1009,7 +1009,92 @@ defmodule AprsParserTest do
                comment: ""
              } == expected_result
     end
+  end
 
+  describe "Tests of error cases, expected to return errors" do
+    # ---------------------------------------------------------------
+    test "Invalid paths" do
+      assert {:error, _str} = AprsParser.parse("INVALID APRS DATA")
+    end
+
+    # ---------------------------------------------------------------
+    test "Invalid ident byte" do
+      assert {:error, _str} =
+               AprsParser.parse("FROMCALL>TOCALL:~4903.50N/07201.75W-Test /A=001234")
+    end
+
+    # ---------------------------------------------------------------
+    test "Invalid object state identifier" do
+      assert {:error, _reason} =
+               AprsParser.parse(
+                 "WW4BSA-9>APBPQ1,TCPIP*,qAC,T2SJC:;WW4BSA*111111z3008.76N/08144.86W"
+               )
+    end
+
+    # ---------------------------------------------------------------
+    test "Error parsing latitude direction 'B'?" do
+      assert {:error, _reason} =
+               AprsParser.parse(
+                 "W1YK-1>APRS,WIDE,qAR,KY1U-2:!4216.47B/07148.43W#PHG5350 W2, WIDE1-1, WPIWA"
+               )
+    end
+
+    # ---------------------------------------------------------------
+    test "Error parsing longitude direction 'B'?" do
+      assert {:error, _reason} =
+               AprsParser.parse(
+                 "W1YK-1>APRS,WIDE,qAR,KY1U-2:!4216.47N/07148.43B#PHG5350 W2, WIDE1-1, WPIWA"
+               )
+    end
+
+    # ---------------------------------------------------------------
+    test "Error parsing latitude" do
+      assert {:error, _reason} =
+               AprsParser.parse(
+                 "DB0HWR-5>APNW01,F1ZJG-2*,F1ZRP-10*,WIDE2*,qAO,DB0UT-12:@052018z9!33.76N/10647.02E#DB0JWR APRS Digi Q21 Hochwald - Saar"
+               )
+    end
+
+    # ---------------------------------------------------------------
+    test "Error parsing longitude" do
+      assert {:error, _reason} =
+               AprsParser.parse(
+                 "DB0HWR-5>APNW01,F1ZJG-2*,F1ZRP-10*,WIDE2*,qAO,DB0UT-12:@052018z4933.76N/\x90\x90647.02E#DB0JWR APRS Digi Q21 Hochwald - Saar"
+               )
+    end
+
+    # ---------------------------------------------------------------
+    test "Non-numeric in time" do
+      assert {:error, _reason} =
+               AprsParser.parse(
+                 "IU4RXM>APBM1D,IR6UDA,DMR*,qAR,IR6UDA:@1601.0h4414.47N/01222.16E(238/000Simone"
+               )
+    end
+
+    # ---------------------------------------------------------------
+    test "Malformed packet, truncated in the middle of the longitude" do
+      assert {:error, _reason} =
+               AprsParser.parse("YM9ERZ>APRS,LOCAL,qAR,TA9A-12:!3949.98NW04118.")
+    end
+
+    # ---------------------------------------------------------------
+    test "Invalid uncompressed position (not numbers)" do
+      assert {:error, _reason} =
+               AprsParser.parse(
+                 "NJ3T-3>APN382,WIDE1-1,qAR,N3DXC:;444.475-R*111111z40.13.58NE079.06.07W0SOMERSET CO ACS Group"
+               )
+    end
+
+    # ---------------------------------------------------------------
+    test " MIC=E parse issue" do
+      assert {:error, _reason} =
+               AprsParser.parse(
+                 "WIDE2>KD4PBS-3,qAR,N4JJS-1:`i.) #/ W2 APRS.RATS.NET Prince George,VA"
+               )
+    end
+  end
+
+  describe "Tests of real packets picked up from APRS-IS which caused crashes" do
     # ---------------------------------------------------------------
     test "Live test crash 1: Weather report" do
       assert {:ok, expected_result} =
@@ -1251,14 +1336,223 @@ defmodule AprsParserTest do
     end
 
     # ---------------------------------------------------------------
-    test "Invalid paths" do
-      assert {:error, _str} = AprsParser.parse("INVALID APRS DATA")
+    test "Live test crash 8: Mic-e issu w/ the destination address" do
+      assert {:ok, expected_result} =
+               AprsParser.parse(
+                 "OE9IMJ-14>TW1VU8-2,WIDE1-1,WIDE2-1,qAR,OE9IMJ-10:`\dBvl\x1FC//\"8a}mou CT3863 S6 11.3C  959hPa 3.4V"
+               )
+
+      assert %AprsParser{
+               raw:
+                 "OE9IMJ-14>TW1VU8-2,WIDE1-1,WIDE2-1,qAR,OE9IMJ-10:`\dBvl\x1FC//\"8a}mou CT3863 S6 11.3C  959hPa 3.4V",
+               from: "OE9IMJ-14",
+               to: "TW1VU8-2",
+               path: ["WIDE1-1", "WIDE2-1", "qAR", "OE9IMJ-10"],
+               comment: "mou CT3863 S6 11.3C  959hPa 3.4V",
+               message: "Priority",
+               position: %{
+                 latitude: {47.27633333333333, :hundredth_minute},
+                 longitude: {99.64833333333333, :hundredth_minute},
+                 symbol: "//",
+                 timestamp: {NaiveDateTime.local_now(), :receiver_time},
+                 course: 339.0,
+                 speed: 0.0,
+                 altitude: 438.0
+               }
+             } == expected_result
     end
 
     # ---------------------------------------------------------------
-    test "Invalid ident byte" do
-      assert {:error, _str} =
-               AprsParser.parse("FROMCALL>TOCALL:~4903.50N/07201.75W-Test /A=001234")
+    test "Live test crash 9: Looks like a comment that is getting interpretted because it has a } in it" do
+      assert {:ok, expected_result} =
+               AprsParser.parse(
+                 "YO3FVR>APWW11,TCPIP*,qAC,T2SYDNEY::ANSRVR   :K SOTA SKYWARN SATELLITE BALLOONS WX WEATHER{DQ}"
+               )
+
+      assert %AprsParser{
+               raw:
+                 "YO3FVR>APWW11,TCPIP*,qAC,T2SYDNEY::ANSRVR   :K SOTA SKYWARN SATELLITE BALLOONS WX WEATHER{DQ}",
+               from: "YO3FVR",
+               to: "APWW11",
+               path: ["TCPIP*", "qAC", "T2SYDNEY"],
+               message: %{
+                 message: "K SOTA SKYWARN SATELLITE BALLOONS WX WEATHER{DQ}",
+                 addressee: "ANSRVR   "
+               },
+               position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}}
+             } == expected_result
+    end
+
+    # ---------------------------------------------------------------
+    test "Live test crash 10: Empty EQNS" do
+      assert {:ok, expected_result} =
+               AprsParser.parse(
+                 "XE2MBE-10>APMI01,TCPIP*,qAS,XE2MBE::XE2MBE-10:EQNS.,,,,,,,,,,,,,,"
+               )
+
+      assert %AprsParser{
+               raw: "XE2MBE-10>APMI01,TCPIP*,qAS,XE2MBE::XE2MBE-10:EQNS.,,,,,,,,,,,,,,",
+               from: "XE2MBE-10",
+               to: "APMI01",
+               path: ["TCPIP*", "qAS", "XE2MBE"],
+               position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}},
+               telemetry: %{
+                 to: "XE2MBE-10",
+                 eqns: [
+                   [0.0, 0.0, 0.0],
+                   [0.0, 0.0, 0.0],
+                   [0.0, 0.0, 0.0],
+                   [0.0, 0.0, 0.0],
+                   [0.0, 0.0, 0.0]
+                 ]
+               }
+             } == expected_result
+    end
+
+    # ---------------------------------------------------------------
+    test "Live test crash 11: Message number isn't always a number" do
+      assert {:ok, expected_result} =
+               AprsParser.parse("NWS-WARN>APRS,qAS,OE7XGR-10::SHVFLS   :rejJ00AA")
+
+      assert %AprsParser{
+               raw: "NWS-WARN>APRS,qAS,OE7XGR-10::SHVFLS   :rejJ00AA",
+               from: "NWS-WARN",
+               to: "APRS",
+               path: ["qAS", "OE7XGR-10"],
+               message: %{message: "rej", addressee: "SHVFLS   ", message_no: "J00AA"},
+               position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}}
+             } == expected_result
+    end
+
+    # ---------------------------------------------------------------
+    test "Live test crash 12: Mic-E problem w/ parsing to address encoded" do
+      assert {:ok, expected_result} =
+               AprsParser.parse("DL9OBG-9>UR5RW7,WIDE1-1,WIDE2-2,qAU,DL9OBG-11:`~3qofb>/")
+
+      assert %AprsParser{
+               raw: "DL9OBG-9>UR5RW7,WIDE1-1,WIDE2-2,qAU,DL9OBG-11:`~3qofb>/",
+               from: "DL9OBG-9",
+               to: "UR5RW7",
+               path: ["WIDE1-1", "WIDE2-2", "qAU", "DL9OBG-11"],
+               comment: "",
+               message: "Priority",
+               other: %{device: "Original Mic-E"},
+               position: %{
+                 timestamp: {NaiveDateTime.local_now(), :receiver_time},
+                 course: 70.0,
+                 latitude: {52.8795, :hundredth_minute},
+                 longitude: {98.3975, :hundredth_minute},
+                 speed: 19.034428000000002,
+                 symbol: "/>"
+               }
+             } == expected_result
+    end
+
+    # ---------------------------------------------------------------
+    test "Live test crash 13: Timestamp character 'a' is unrecognized" do
+      assert {:ok, expected_result} =
+               AprsParser.parse(
+                 "LX1CU-13>APMI06,TCPIP*,qAC,T2GYOR:@051739a4948.24ND00559.92E-WX3in1Plus2.0 U=12.1V,T=28.3C"
+               )
+
+      now = NaiveDateTime.utc_now()
+
+      expected_time =
+        NaiveDateTime.new(
+          now.year,
+          now.month,
+          String.to_integer("05"),
+          String.to_integer("17"),
+          String.to_integer("39"),
+          0,
+          0
+        )
+        |> elem(1)
+
+      assert %AprsParser{
+               raw:
+                 "LX1CU-13>APMI06,TCPIP*,qAC,T2GYOR:@051739a4948.24ND00559.92E-WX3in1Plus2.0 U=12.1V,T=28.3C",
+               from: "LX1CU-13",
+               to: "APMI06",
+               path: ["TCPIP*", "qAC", "T2GYOR"],
+               comment: "WX3in1Plus2.0 U=12.1V,T=28.3C",
+               position: %{
+                 latitude: {49.804, :hundredth_minute},
+                 longitude: {5.998666666666667, :hundredth_minute},
+                 symbol: "D-",
+                 timestamp: {expected_time, :sender_time}
+               }
+             } == expected_result
+    end
+
+    # ---------------------------------------------------------------
+    test "Live test crash 14: .001 is not float" do
+      assert {:ok, expected_result} =
+               AprsParser.parse(
+                 "KX4O-13>APMI06,TCPIP*,qAS,KX4O::KX4O-13  :EQNS.0,0.075,0,0,1,0,0,1,0,0,1,0,0,.001,0"
+               )
+
+      assert %AprsParser{
+               raw:
+                 "KX4O-13>APMI06,TCPIP*,qAS,KX4O::KX4O-13  :EQNS.0,0.075,0,0,1,0,0,1,0,0,1,0,0,.001,0",
+               from: "KX4O-13",
+               to: "APMI06",
+               path: ["TCPIP*", "qAS", "KX4O"],
+               position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}},
+               telemetry: %{
+                 to: "KX4O-13",
+                 eqns: [
+                   [0.0, 0.075, 0.0],
+                   [0.0, 1.0, 0.0],
+                   [0.0, 1.0, 0.0],
+                   [0.0, 1.0, 0.0],
+                   [0.0, 0.001, 0.0]
+                 ]
+               }
+             } == expected_result
+    end
+
+    # ---------------------------------------------------------------
+    test "Live test crash 15: Get rid of pesky q constructs" do
+      assert {:ok, expected_result} =
+               AprsParser.parse(
+                 "DO7BTR-10>APLC13,qAS,DO9FK-3::DO7BTR-10:EQNS.0,0.1,0,0,0.1,0,0,0.1,0,qAR,DO9FK-3"
+               )
+
+      assert %AprsParser{
+               raw:
+                 "DO7BTR-10>APLC13,qAS,DO9FK-3::DO7BTR-10:EQNS.0,0.1,0,0,0.1,0,0,0.1,0,qAR,DO9FK-3",
+               from: "DO7BTR-10",
+               to: "APLC13",
+               path: ["qAS", "DO9FK-3"],
+               position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}},
+               telemetry: %{
+                 eqns: [[0.0, 0.1, 0.0], [0.0, 0.1, 0.0], [0.0, 0.1, 0.0]],
+                 to: "DO7BTR-10"
+               }
+             } == expected_result
+    end
+
+    # ---------------------------------------------------------------
+    test "Live test crash 16: Problem parsing Telemetry with a sixth channel" do
+      assert {:ok, expected_result} =
+               AprsParser.parse(
+                 "AG1T-20>APRS,TCPIP*,qAC,SIXTH:T#336,134,241,142,036,000,000,01100000"
+               )
+
+      assert %AprsParser{
+               raw: "AG1T-20>APRS,TCPIP*,qAC,SIXTH:T#336,134,241,142,036,000,000,01100000",
+               from: "AG1T-20",
+               to: "APRS",
+               path: ["TCPIP*", "qAC", "SIXTH"],
+               comment: "",
+               position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}},
+               telemetry: %{
+                 bits: [0, 1, 1, 0, 0, 0, 0, 0],
+                 sequence_counter: 336,
+                 values: [134, 241, 142, 36, 0]
+               }
+             } == expected_result
     end
   end
 end
