@@ -22,6 +22,7 @@ defmodule APRSUtils.AprsParser do
             other: nil,
             object: nil,
             item: nil,
+            raw_gps: nil,
             comment: nil
 
   defp init_aprs,
@@ -31,6 +32,41 @@ defmodule APRSUtils.AprsParser do
       to: nil,
       path: nil
     }
+
+  # Because of the compile time nature of guards, this check is limitted to the first 9 characters
+  @digits ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+
+  defguard is_all_digits(term)
+           when is_binary(term) and
+                  binary_part(term, 0, 1) in @digits and
+                  (byte_size(term) < 2 or binary_part(term, 1, 1) in @digits) and
+                  (byte_size(term) < 3 or binary_part(term, 2, 1) in @digits) and
+                  (byte_size(term) < 4 or binary_part(term, 3, 1) in @digits) and
+                  (byte_size(term) < 5 or binary_part(term, 4, 1) in @digits) and
+                  (byte_size(term) < 6 or binary_part(term, 5, 1) in @digits) and
+                  (byte_size(term) < 7 or binary_part(term, 6, 1) in @digits) and
+                  (byte_size(term) < 8 or binary_part(term, 7, 1) in @digits) and
+                  (byte_size(term) < 9 or binary_part(term, 8, 1) in @digits) and
+                  byte_size(term) < 10
+
+  def fn_is_all_digits(term), do: is_all_digits(term)
+
+  # Because of the compile time nature of guards, this check is limitted to the first 9 characters
+  @float_chars ["-", "." | @digits]
+  defguard is_all_float(term)
+           when is_binary(term) and
+                  binary_part(term, 0, 1) in @float_chars and
+                  (byte_size(term) < 2 or binary_part(term, 1, 1) in @float_chars) and
+                  (byte_size(term) < 3 or binary_part(term, 2, 1) in @float_chars) and
+                  (byte_size(term) < 4 or binary_part(term, 3, 1) in @float_chars) and
+                  (byte_size(term) < 5 or binary_part(term, 4, 1) in @float_chars) and
+                  (byte_size(term) < 6 or binary_part(term, 5, 1) in @float_chars) and
+                  (byte_size(term) < 7 or binary_part(term, 6, 1) in @float_chars) and
+                  (byte_size(term) < 8 or binary_part(term, 7, 1) in @float_chars) and
+                  (byte_size(term) < 9 or binary_part(term, 8, 1) in @float_chars) and
+                  byte_size(term) < 10
+
+  def fn_is_all_float(term), do: is_all_float(term)
 
   @doc """
   Parses an APRS string into components.
@@ -50,6 +86,7 @@ defmodule APRSUtils.AprsParser do
       |> maybe_add_altitude_from_comment()
       |> maybe_add_base_91_telemetry_from_comment()
       |> maybe_add_dao_from_comment()
+      |> validate_strings()
       |> then(&{:ok, elem(&1, 0)})
     catch
       {{aprs, msg}, error_string} -> {:error, throw_to_error_return({aprs, msg}, error_string)}
@@ -72,15 +109,15 @@ defmodule APRSUtils.AprsParser do
   end
 
   @regexs [
-    ~r/(.{1,9}?)>(.{1,9}?),(.{1,9}?),(.{1,9}?),(.{1,9}?),(.{1,9}?),(.{1,9}?),(.{1,9}?),(.{1,9}?),(.{1,9}?):(.*)/,
-    ~r/(.{1,9}?)>(.{1,9}?),(.{1,9}?),(.{1,9}?),(.{1,9}?),(.{1,9}?),(.{1,9}?),(.{1,9}?),(.{1,9}?):(.*)/,
-    ~r/(.{1,9}?)>(.{1,9}?),(.{1,9}?),(.{1,9}?),(.{1,9}?),(.{1,9}?),(.{1,9}?),(.{1,9}?):(.*)/,
-    ~r/(.{1,9}?)>(.{1,9}?),(.{1,9}?),(.{1,9}?),(.{1,9}?),(.{1,9}?),(.{1,9}?):(.*)/,
-    ~r/(.{1,9}?)>(.{1,9}?),(.{1,9}?),(.{1,9}?),(.{1,9}?),(.{1,9}?):(.*)/,
-    ~r/(.{1,9}?)>(.{1,9}?),(.{1,9}?),(.{1,9}?),(.{1,9}?):(.*)/,
-    ~r/(.{1,9}?)>(.{1,9}?),(.{1,9}?),(.{1,9}?):(.*)/,
-    ~r/(.{1,9}?)>(.{1,9}?),(.{1,9}?):(.*)/,
-    ~r/(.{1,9}?)>(.{1,9}?):(.*)/
+    ~r/(.{1,10}?)>(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?):(.*)/,
+    ~r/(.{1,10}?)>(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?):(.*)/,
+    ~r/(.{1,10}?)>(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?):(.*)/,
+    ~r/(.{1,10}?)>(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?):(.*)/,
+    ~r/(.{1,10}?)>(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?):(.*)/,
+    ~r/(.{1,10}?)>(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?):(.*)/,
+    ~r/(.{1,10}?)>(.{1,10}?),(.{1,10}?),(.{1,10}?):(.*)/,
+    ~r/(.{1,10}?)>(.{1,10}?),(.{1,10}?):(.*)/,
+    ~r/(.{1,10}?)>(.{1,10}?):(.*)/
   ]
   # Extract the FROM/TO/PATH, See chapter 4 page 13 of http://www.aprs.org/doc/APRS101.PDF
   defp get_paths({aprs, aprs_string}) do
@@ -133,7 +170,7 @@ defmodule APRSUtils.AprsParser do
          data_identifier
        )
        when data_identifier in ["!", "="] do
-    if first_byte in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"] do
+    if is_all_digits(first_byte) do
       parse_position_uncompressed({aprs, msg})
     else
       parse_position_compressed({aprs, msg})
@@ -233,8 +270,20 @@ defmodule APRSUtils.AprsParser do
     end
   end
 
+  # Raw GPS data, not really detailed in the spec, I assume the client
+  # is supposed to know what to do with it.
+  defp parse_w_data_identifier({aprs, msg}, data_identifier) when data_identifier in ["$"] do
+    {%__MODULE__{aprs | raw_gps: msg}, ""}
+  end
+
+  # Positionless Weather Report: Chapter 12 page 63 of http://www.aprs.org/doc/APRS101.PDF
+  defp parse_w_data_identifier(p, data_identifier) when data_identifier in ["_"] do
+    parse_positionless_weather_report(p)
+    |> extract_comment()
+  end
+
   defp parse_w_data_identifier(p, data_identifier)
-       when data_identifier in ["#", "$", "%", "(", "*", ",", "-", "<", "?", "[", "_"] do
+       when data_identifier in ["#", "%", "(", "*", ",", "-", "<", "?", "["] do
     throw({p, "Unimplemented APRS Data Type Identifier: #{data_identifier}"})
   end
 
@@ -246,86 +295,93 @@ defmodule APRSUtils.AprsParser do
     )
   end
 
-  defp parse_telemetry_report(
-         {aprs,
-          <<"#MIC,", ch_1::binary-size(3), ",", ch_2::binary-size(3), ",", ch_3::binary-size(3),
-            ",", ch_4::binary-size(3), ",", ch_5::binary-size(3), ",",
-            digital_value::binary-size(8), rest::binary>>}
-       ) do
-    {aprs |> add_telemetry_report(nil, ch_1, ch_2, ch_3, ch_4, ch_5, digital_value), rest}
+  # Look at the strings and throw if they are not valid strings
+  defp validate_strings({aprs, msg}) do
+    aprs_map = Map.from_struct(aprs)
+    validate_string(aprs_map, [:position, :symbol], "Symbol")
+    validate_string(aprs_map, [:message], "Message")
+    validate_string(aprs_map, [:from], "From")
+    validate_string(aprs_map, [:to], "To")
+    validate_string(aprs_map, [:comment], "Comment")
+    validate_string(aprs_map, [:raw], "Raw Packet")
+    validate_string(aprs_map, [:status], "Status")
+    validate_string(aprs_map, [:raw_gps], "Raw GPS")
+    validate_string(aprs_map, [:weather, :wx_unit], "WX Unit")
+    validate_string(aprs_map, [:weather, :softwary_type], "Software Type")
+    validate_string(aprs_map, [:other, :device], "Device")
+
+    if not Enum.all?(aprs.path, &String.valid?/1) do
+      throw({{nil, nil}, "A Path component is not a valid string"})
+    end
+
+    {aprs, msg}
   end
 
-  defp parse_telemetry_report(
-         {aprs,
-          <<"#MIC", ch_1::binary-size(3), ",", ch_2::binary-size(3), ",", ch_3::binary-size(3),
-            ",", ch_4::binary-size(3), ",", ch_5::binary-size(3), ",",
-            digital_value::binary-size(8), rest::binary>>}
-       ) do
-    {aprs |> add_telemetry_report(nil, ch_1, ch_2, ch_3, ch_4, ch_5, digital_value), rest}
+  defp validate_string(aprs, field_list, name_of_field) do
+    case get_in(aprs, field_list) do
+      str when is_binary(str) ->
+        if String.valid?(str) do
+          :ok
+        else
+          throw(
+            {{nil, nil}, "#{name_of_field} is not a valid string: #{String.replace_invalid(str)}"}
+          )
+        end
+
+      _ ->
+        nil
+    end
   end
 
-  # I have seen cases of the telemetry reports with a 6th channel that is processed by
-  # aprs.fi, even though it is not in the spec. I'll just handle that case and ignore the
-  # 6th channel.
-  defp parse_telemetry_report(
-         {aprs,
-          <<"#", sequence_no::binary-size(3), ",", ch_1::binary-size(3), ",",
-            ch_2::binary-size(3), ",", ch_3::binary-size(3), ",", ch_4::binary-size(3), ",",
-            ch_5::binary-size(3), ",", _ch_6::binary-size(3), ",", digital_value::binary-size(8),
-            rest::binary>>}
-       ) do
-    {aprs |> add_telemetry_report(sequence_no, ch_1, ch_2, ch_3, ch_4, ch_5, digital_value), rest}
+  defp parse_telemetry_report({aprs, <<"#MIC,", rest::binary>>}) do
+    {aprs, rest} |> add_telemetry_report(nil)
   end
 
-  defp parse_telemetry_report(
-         {aprs,
-          <<"#", sequence_no::binary-size(3), ",", ch_1::binary-size(3), ",",
-            ch_2::binary-size(3), ",", ch_3::binary-size(3), ",", ch_4::binary-size(3), ",",
-            ch_5::binary-size(3), ",", digital_value::binary-size(8), rest::binary>>}
-       ) do
-    {aprs |> add_telemetry_report(sequence_no, ch_1, ch_2, ch_3, ch_4, ch_5, digital_value), rest}
+  defp parse_telemetry_report({aprs, <<"#MIC", rest::binary>>}) do
+    {aprs, rest} |> add_telemetry_report(nil)
+  end
+
+  # aprs.fi is tolernt of 1-4 digits in the sequence number
+  defp parse_telemetry_report({aprs, <<"#", sequence_no::binary-size(4), ",", rest::binary>>}) do
+    {aprs, rest} |> add_telemetry_report(sequence_no)
+  end
+
+  defp parse_telemetry_report({aprs, <<"#", sequence_no::binary-size(3), ",", rest::binary>>}) do
+    {aprs, rest} |> add_telemetry_report(sequence_no)
+  end
+
+  defp parse_telemetry_report({aprs, <<"#", sequence_no::binary-size(2), ",", rest::binary>>}) do
+    {aprs, rest} |> add_telemetry_report(sequence_no)
+  end
+
+  defp parse_telemetry_report({aprs, <<"#", sequence_no::binary-size(1), ",", rest::binary>>}) do
+    {aprs, rest} |> add_telemetry_report(sequence_no)
   end
 
   defp parse_telemetry_report(arg), do: throw({arg, "Badly formatted telemetry report"})
 
-  defp add_telemetry_report(
-         aprs,
-         sequence_no,
-         ch_1,
-         ch_2,
-         ch_3,
-         ch_4,
-         ch_5,
-         <<b0::binary-size(1), b1::binary-size(1), b2::binary-size(1), b3::binary-size(1),
-           b4::binary-size(1), b5::binary-size(1), b6::binary-size(1), b7::binary-size(1)>>
-       ) do
-    telemetry = %{
-      values: [
-        to_numeric(ch_1),
-        to_numeric(ch_2),
-        to_numeric(ch_3),
-        to_numeric(ch_4),
-        to_numeric(ch_5)
-      ],
-      bits: [
-        String.to_integer(b0),
-        String.to_integer(b1),
-        String.to_integer(b2),
-        String.to_integer(b3),
-        String.to_integer(b4),
-        String.to_integer(b5),
-        String.to_integer(b6),
-        String.to_integer(b7)
-      ]
+  defp add_telemetry_report({aprs, msg}, sequence_no) do
+    {telemetry, rest} =
+      parse_comma_separated_string(msg, &fn_is_all_float/1)
+
+    {channels, digital_value} =
+      {Enum.take(telemetry, min(5, Enum.count(telemetry) - 1)), List.last(telemetry)}
+
+    if not Enum.all?(String.codepoints(digital_value), &(&1 in ["0", "1"])) do
+      throw({{aprs, msg}, "Digital value must be a string of 0's and 1's"})
+    end
+
+    telemetry_struct = %{
+      values: Enum.filter(channels, fn value -> value != "" end) |> Enum.map(&to_numeric/1),
+      bits: String.codepoints(digital_value) |> Enum.map(&String.to_integer/1)
     }
 
-    telemetry =
+    telemetry_struct =
       if sequence_no != nil,
-        do: Map.put(telemetry, :sequence_counter, String.to_integer(sequence_no)),
-        else: telemetry
+        do: Map.put(telemetry_struct, :sequence_counter, String.to_integer(sequence_no)),
+        else: telemetry_struct
 
-    aprs
-    |> add_information(:telemetry, telemetry)
+    {aprs |> add_information(:telemetry, telemetry_struct), rest}
   end
 
   # Message Acknowledgement: Chapter 14 page 72 of http://www.aprs.org/doc/APRS101.PDF
@@ -442,7 +498,8 @@ defmodule APRSUtils.AprsParser do
     end
   end
 
-  defp parse_status_report({aprs, <<dhm::binary-size(6), "z", msg::binary>>}) do
+  defp parse_status_report({aprs, <<dhm::binary-size(6), "z", msg::binary>>})
+       when is_all_digits(dhm) do
     {%__MODULE__{aprs | status: msg}
      |> add_information(:position, %{
        timestamp: {parse_timestamp(dhm, "z"), :sender_time}
@@ -898,6 +955,17 @@ defmodule APRSUtils.AprsParser do
 
   defp parse_cs(aprs, _cs, _comp_type), do: aprs
 
+  defp parse_positionless_weather_report({aprs, <<mdhm::binary-size(8), weather_data::binary>>}) do
+    {add_information(
+       aprs,
+       :position,
+       %{
+         timestamp: {parse_timestamp_mdhm(mdhm), :sender_time}
+       }
+     ), weather_data}
+    |> add_weather_parameters(true)
+  end
+
   defp parse_weather_data(
          {%__MODULE__{position: %{symbol: symbol, course: course, speed: speed}} = aprs, msg}
        )
@@ -946,7 +1014,12 @@ defmodule APRSUtils.AprsParser do
      }), rest}
   end
 
-  defp add_weather_parameters({aprs, <<param_code::binary-size(1), rest::binary>>})
+  defp add_weather_parameters(p, positionless? \\ false)
+
+  defp add_weather_parameters(
+         {aprs, <<param_code::binary-size(1), rest::binary>>},
+         positionless?
+       )
        when param_code in [
               "g",
               "t",
@@ -957,6 +1030,7 @@ defmodule APRSUtils.AprsParser do
               "b",
               "L",
               "l",
+              "c",
               "s",
               "#",
               "F",
@@ -985,10 +1059,20 @@ defmodule APRSUtils.AprsParser do
           add_weather({aprs, rest}, :rainfall_since_midnight, 3, @hundredths_of_inch_to_meters)
 
         "h" ->
-          add_weather({aprs, rest}, :humidity, 2, 1.0)
+          # aprs.fi accepts 3 digits of humidity, but the spec says 2 digits.
+          if String.length(rest) > 2 and is_all_digits(String.slice(rest, 2, 1)) do
+            add_weather({aprs, rest}, :humidity, 3, 1.0)
+          else
+            add_weather({aprs, rest}, :humidity, 2, 1.0)
+          end
 
         "b" ->
-          add_weather({aprs, rest}, :barometric_pressure, 5, 0.1)
+          # aprs.fi accepts 6 digits of barametric pressure, but the spec says 5 digits.
+          if String.length(rest) > 5 and is_all_digits(String.slice(rest, 5, 1)) do
+            add_weather({aprs, rest}, :barometric_pressure, 6, 0.1)
+          else
+            add_weather({aprs, rest}, :barometric_pressure, 5, 0.1)
+          end
 
         "L" ->
           add_weather({aprs, rest}, :luminosity, 3, 1.0)
@@ -996,8 +1080,18 @@ defmodule APRSUtils.AprsParser do
         "l" ->
           add_weather({aprs, rest}, :luminosity, 3, 1000.0)
 
+        "c" ->
+          add_weather({aprs, rest}, :wind_direction, 3, 1.0)
+
         "s" ->
-          add_weather({aprs, rest}, :snowfall, 3, @inch_to_meters)
+          # In the case of positionless weather report, 's' parameter means
+          # the wind speed. Otherwise, it means the snowfall.
+          # See http://www.aprs.org/aprs11/spec-wx.txt
+          if positionless? do
+            add_weather({aprs, rest}, :wind_speed, 3, @miles_per_hour_to_meters_per_second)
+          else
+            add_weather({aprs, rest}, :snowfall, 3, @inch_to_meters)
+          end
 
         "#" ->
           add_weather({aprs, rest}, :rain_counts, 3, 1.0)
@@ -1027,17 +1121,46 @@ defmodule APRSUtils.AprsParser do
     if new_rest == rest do
       {aprs, param_code <> rest}
     else
-      add_weather_parameters({new_aprs, new_rest})
+      add_weather_parameters({new_aprs, new_rest}, positionless?)
     end
   end
 
-  defp add_weather_parameters({aprs, msg}) do
+  defp add_weather_parameters({aprs, <<s::binary-size(1), wx_unit::binary>>}, _positionless?)
+       when not is_all_digits(wx_unit) and byte_size(wx_unit) >= 2 and
+              byte_size(wx_unit) <= 4 do
     # APRS Software Version and WX Unit: Chapter 12 page 63 of http://www.aprs.org/doc/APRS101.PDF
-    if String.length(msg) <= 5 and String.length(msg) >= 3 do
-      {add_information(aprs, :weather, %{device_type: msg}), ""}
-    else
-      {aprs, msg}
-    end
+    {add_information(aprs, :weather, %{
+       software_type:
+         case s do
+           "d" -> "APRSdos"
+           "M" -> "MacAPRS"
+           "P" -> "pocketAPRS"
+           "S" -> "APRS+SA"
+           "W" -> "WinAPRS"
+           "X" -> "X-APRS (Linux)"
+           _ -> "Unknown '#{s}'"
+         end,
+       wx_unit:
+         case wx_unit do
+           "Dvs" -> "Davis"
+           "HKT" -> "Heathkit"
+           "PIC" -> "PIC Device"
+           "RSW" -> "Radio Shack"
+           "U-II" -> "Original Ultimeter II (auto mode)"
+           "U2R" -> "Original Ultimeter II (remote mode)"
+           "U2k" -> "Ultimeter 500/2000"
+           "U2kr" -> "Remote Ultimeter logger"
+           "U5" -> "Ultimeter 500"
+           "Upkm" -> "Remote Ultimeter packet mode"
+           _ -> "Unknown '#{wx_unit}'"
+         end
+     }), ""}
+  end
+
+  defp add_weather_parameters({aprs, ""}, _positionless?), do: {aprs, ""}
+
+  defp add_weather_parameters(p, _positionless?) do
+    p
   end
 
   defp add_weather_hurricane({aprs, <<"TS", rest::binary>>}) do
@@ -1181,6 +1304,12 @@ defmodule APRSUtils.AprsParser do
     {add_information(aprs, :position, %{
        height:
          case height_code do
+           "*" -> 2.5 / 16.0
+           "+" -> 2.5 / 8.0
+           "," -> 2.5 / 4.0
+           "-" -> 2.5 / 2.0
+           "." -> 2.5
+           "/" -> 5.0
            "0" -> 10.0
            "1" -> 20.0
            "2" -> 40.0
@@ -1196,12 +1325,17 @@ defmodule APRSUtils.AprsParser do
            "<" -> 40960.0
            "=" -> 81920.0
            ">" -> 163_840.0
+           "?" -> 163_840.0 * 2.0
+           "@" -> 163_840.0 * 4.0
+           "A" -> 163_840.0 * 8.0
+           "B" -> 163_840.0 * 16.0
            _ -> throw({{aprs, msg}, "Height code #{height_code} unknown"})
          end * @meters_per_foot,
        gain: to_float(gain_code),
        directivity:
          case directivity_code do
            "0" -> :omnidirectional
+           "9" -> :omnidirectional
            "1" -> 45.0
            "2" -> 90.0
            "3" -> 135.0
@@ -1339,7 +1473,9 @@ defmodule APRSUtils.AprsParser do
       latitude =
         case direction do
           "N" -> latitude
+          "n" -> latitude
           "S" -> -latitude
+          "s" -> -latitude
           _ -> throw({{nil, nil}, "Could not parse latitude direction #{direction}"})
         end
 
@@ -1374,7 +1510,9 @@ defmodule APRSUtils.AprsParser do
       longitude =
         case direction do
           "E" -> longitude
+          "e" -> longitude
           "W" -> -longitude
+          "w" -> -longitude
           _ -> throw({{nil, nil}, "Could not parse longitude direction #{direction}"})
         end
 
@@ -1385,13 +1523,13 @@ defmodule APRSUtils.AprsParser do
   end
 
   # DHM - Zulu time
-  # Note that only "/" appears in the spec: Chapter 6, Page 22 of http://www.aprs.org/doc/APRS101.PDF
-  # But I'm seeing a lot of packets with "a", so I'm adding them
+  # Note that only "z" appears in the spec: Chapter 6, Page 22 of http://www.aprs.org/doc/APRS101.PDF
+  # But I'm seeing a lot of packets with "a", "Z", " ", so I'm adding them
   defp parse_timestamp(
          <<day::binary-size(2), hour::binary-size(2), minute::binary-size(2)>>,
          time_indicator
        )
-       when time_indicator in ["z", "a"] do
+       when time_indicator in ["z", "a", "Z", " "] do
     now = NaiveDateTime.utc_now()
 
     NaiveDateTime.new(
@@ -1454,6 +1592,25 @@ defmodule APRSUtils.AprsParser do
        ),
        do: throw({{nil, nil}, "Unknown time indicator #{time_indicator}"})
 
+  # MDHM - Zulu time w/o a time indicator (from Positionless Weather Report)
+  defp parse_timestamp_mdhm(
+         <<month::binary-size(2), day::binary-size(2), hour::binary-size(2),
+           minute::binary-size(2)>>
+       ) do
+    now = NaiveDateTime.utc_now()
+
+    NaiveDateTime.new(
+      now.year,
+      String.to_integer(month),
+      String.to_integer(day),
+      String.to_integer(hour),
+      String.to_integer(minute),
+      0,
+      0
+    )
+    |> elem(1)
+  end
+
   defp add_information(%__MODULE__{} = aprs, key, info) when is_atom(key) and is_map(info) do
     if Map.has_key?(aprs, key) and Map.get(aprs, key) != nil do
       Map.put(aprs, key, Map.merge(Map.get(aprs, key), info))
@@ -1488,8 +1645,8 @@ defmodule APRSUtils.AprsParser do
 
   defp to_numeric(str) do
     case Integer.parse(str) do
-      {num, _} -> num
-      :error -> to_float(str)
+      {num, ""} -> num
+      _ -> to_float(str)
     end
   end
 
@@ -1506,7 +1663,9 @@ defmodule APRSUtils.AprsParser do
     end
   end
 
-  defp byte_val(str) when is_binary(str), do: String.to_charlist(str) |> List.first()
+  defp byte_val(str) when is_binary(str) do
+    :erlang.binary_to_list(str) |> List.first()
+  end
 
   defp throw_to_error_return({nil, nil}, error_message) do
     %{
@@ -1527,4 +1686,44 @@ defmodule APRSUtils.AprsParser do
   defp fahrenheit_to_celsius(fahrenheit), do: (fahrenheit - 32.0) * (5.0 / 9.0)
   defp convert(value, func) when is_function(func), do: func.(value)
   defp convert(value, factor) when is_float(factor), do: factor * value
+
+  def parse_comma_separated_string(string, is_in_set)
+      when is_binary(string) and is_function(is_in_set) do
+    split = String.split(string, ",")
+
+    {output_list, remaining_list} =
+      Enum.reduce_while(split, {[], split}, fn str, {output_list, [_h | remaining_list]} ->
+        if String.codepoints(str) |> Enum.all?(is_in_set) do
+          {:cont,
+           {
+             [str | output_list],
+             remaining_list
+           }}
+        else
+          {:halt, {output_list, [str | remaining_list]}}
+        end
+      end)
+
+    {one_more, new_first_element} =
+      if remaining_list != [] do
+        last_entry = List.first(remaining_list) |> String.codepoints()
+
+        Enum.reduce_while(last_entry, {"", last_entry}, fn char, {output, [_h | remaining]} ->
+          if is_in_set.(char) do
+            {:cont, {output <> char, remaining}}
+          else
+            {:halt, {output, char <> Enum.join(remaining)}}
+          end
+        end)
+      else
+        {"", ""}
+      end
+
+    if one_more == "" do
+      {Enum.reverse(output_list), Enum.join(remaining_list, ",")}
+    else
+      {Enum.reverse([one_more | output_list]),
+       new_first_element <> Enum.join(remaining_list |> List.pop_at(0) |> elem(1), ",")}
+    end
+  end
 end

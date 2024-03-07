@@ -23,8 +23,9 @@ defmodule APRSUtils.AprsIs do
              socket,
              "user #{opts[:username]} pass #{opts[:password]} #{opts[:app_name]} #{opts[:app_version]} filter #{opts[:filter]}\r\n"
            ),
+         {:ok, <<"# ", server_version::binary>>} <- :gen_tcp.recv(socket, 0),
+         :ok <- opts[:client_module].connected(server_version),
          listener <- Process.spawn(fn -> listen(socket, genserver_pid) end, [:link]) do
-      opts[:client_module].connected()
       {:ok, %{socket: socket, listener: listener, client_module: opts[:client_module]}}
     else
       {:error, reason} -> {:stop, reason}
@@ -70,7 +71,7 @@ end
 
 defmodule APRSUtilsIsClient do
   @callback got_packet(binary()) :: :ok
-  @callback connected() :: :ok
+  @callback connected(binary()) :: :ok
   @callback disconnected() :: :ok
   @callback got_comment(binary()) :: :ok
   @callback got_error(binary()) :: :ok

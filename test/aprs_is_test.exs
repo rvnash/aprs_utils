@@ -18,7 +18,7 @@ defmodule Balloons.Utils.AprsIsTest do
 
     assert is_pid(pid)
 
-    Process.sleep(50000)
+    Process.sleep(500_000)
   end
 end
 
@@ -26,9 +26,35 @@ defmodule Client do
   alias APRSUtils.AprsParser
   @behaviour APRSUtilsIsClient
   def got_packet(packet) do
-    IO.puts("Got packet #{String.replace_invalid(packet)}")
-    IO.puts(inspect(AprsParser.parse(packet), label: "Packet", pretty: true))
+    try do
+      case AprsParser.parse(packet) do
+        {:ok, %AprsParser{} = _parsed} ->
+          :ok
+
+        {:error, reason} ->
+          IO.puts("\nError parsing packet: #{reason.error_message}")
+          IO.puts("Packet: #{String.replace_invalid(packet)}")
+          puts_link(packet)
+      end
+    rescue
+      e ->
+        IO.puts("\nException raised parsing packet: #{String.replace_invalid(packet)}")
+        puts_link(packet)
+        reraise e, __STACKTRACE__
+    end
+
+    # IO.puts(inspect(AprsParser.parse(packet), label: "Packet", pretty: true))
     :ok
+  end
+
+  defp puts_link(packet) do
+    case Regex.run(~r/^(.*?)>.*/, packet) do
+      [_, call] ->
+        IO.puts("Link: https://aprs.fi/?c=raw&call=#{call}&limit=25&view=normal")
+
+      nil ->
+        IO.puts("No call found in packet")
+    end
   end
 
   def got_comment(str) do
@@ -41,8 +67,8 @@ defmodule Client do
     :ok
   end
 
-  def connected do
-    IO.puts("Connected")
+  def connected(server_version) do
+    IO.puts("Connected to server: #{server_version}")
     :ok
   end
 

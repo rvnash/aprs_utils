@@ -974,7 +974,8 @@ defmodule AprsParserTest do
                  barometric_pressure: 1020.5,
                  rainfall_since_midnight: 0.0,
                  luminosity: 9.0,
-                 device_type: ".DsIP"
+                 software_type: "Unknown '.'",
+                 wx_unit: "Unknown 'DsIP'"
                },
                comment: ""
              } == expected_result
@@ -1086,10 +1087,38 @@ defmodule AprsParserTest do
     end
 
     # ---------------------------------------------------------------
-    test " MIC=E parse issue" do
+    test "MIC-E parse issue" do
       assert {:error, _reason} =
                AprsParser.parse(
                  "WIDE2>KD4PBS-3,qAR,N4JJS-1:`i.) #/ W2 APRS.RATS.NET Prince George,VA"
+               )
+    end
+
+    test "Malformed uncompressed location" do
+      assert {:error, _reason} =
+               AprsParser.parse(
+                 "E22WWZ-13>APRX20,qAR,E24MSQ-13:!1400.24N/09932.97��AIa�WRT54GL&VP-DigiTNC > https://project.aprsindy.org"
+               )
+
+      assert {:error, _reason} =
+               AprsParser.parse(
+                 "E22WWZ-13>APRX20,qAR,E24MSQ-13:!1400.24N/09932.97\xa2\xaeAIa\x81WRT54GL&VP-DigiTNC > https://project.aprsindy.org"
+               )
+    end
+
+    # ---------------------------------------------------------------
+    test "Wacky Telemetry that aprs.fi actually parses in some way, seems nuts." do
+      assert {:error, _reason} =
+               AprsParser.parse(
+                 "F1ZRP-13>APRS,F1ZRP-10*,WIDE1*,WIDE2-1,qAO,DB0UT-12:T#862,13.3,STHU,090,"
+               )
+    end
+
+    # ---------------------------------------------------------------
+    test "Invalid symbol crashes" do
+      assert {:error, _reason} =
+               AprsParser.parse(
+                 "9W2WBP-9>P3PRT9,9M2RKK-3*,WIDE2-1,qAR,9W2UUE-2:`m>4\"P\xaa\xbd]\"43}="
                )
     end
   end
@@ -1554,5 +1583,403 @@ defmodule AprsParserTest do
                }
              } == expected_result
     end
+
+    # ---------------------------------------------------------------
+    test "Live test crash 17: Status report issue" do
+      assert {:ok, expected_result} =
+               AprsParser.parse(
+                 "SP2PMK>APN100,TCPIP*,qAC,T2POLAND:>Zapraszamy w ka\xc5\xbcdy poniedzia\xc5\x82ek o 18:00 "
+               )
+
+      assert %AprsParser{
+               raw: "SP2PMK>APN100,TCPIP*,qAC,T2POLAND:>Zapraszamy w każdy poniedziałek o 18:00 ",
+               from: "SP2PMK",
+               to: "APN100",
+               path: ["TCPIP*", "qAC", "T2POLAND"],
+               position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}},
+               status: "Zapraszamy w każdy poniedziałek o 18:00 "
+             } == expected_result
+    end
+
+    # ---------------------------------------------------------------
+    test "Live test 18: Should process this Telemetry report" do
+      assert {:ok, expected_result} =
+               AprsParser.parse(
+                 "EL-IK8TGH>RXTLM-1,TCPIP,qAR,IK8TGH:T#342,1.50,0.00,0,1,0.0,00000000,ORP_SimplexLogic_Port1"
+               )
+
+      assert %AprsParser{
+               raw:
+                 "EL-IK8TGH>RXTLM-1,TCPIP,qAR,IK8TGH:T#342,1.50,0.00,0,1,0.0,00000000,ORP_SimplexLogic_Port1",
+               from: "EL-IK8TGH",
+               to: "RXTLM-1",
+               path: ["TCPIP", "qAR", "IK8TGH"],
+               comment: "ORP_SimplexLogic_Port1",
+               position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}},
+               telemetry: %{
+                 values: [1.5, 0.0, 0, 1, 0.0],
+                 bits: [0, 0, 0, 0, 0, 0, 0, 0],
+                 sequence_counter: 342
+               }
+             } == expected_result
+    end
+
+    # ---------------------------------------------------------------
+    test "Live test 19: Should process TO/FROM/PATH" do
+      assert {:ok, expected_result} =
+               AprsParser.parse(
+                 "IW3SRV-5>T5TV82,S53UAN-10*,WIDE1*,WIDE2-1,qAR,S58W-10:`)?\x1fl \x1cs/>\"3v}"
+               )
+
+      assert %AprsParser{
+               comment: "",
+               raw: "IW3SRV-5>T5TV82,S53UAN-10*,WIDE1*,WIDE2-1,qAR,S58W-10:`)?\x1Fl \x1Cs/>\"3v}",
+               from: "IW3SRV-5",
+               to: "T5TV82",
+               path: ["S53UAN-10*", "WIDE1*", "WIDE2-1", "qAR", "S58W-10"],
+               message: "Special",
+               position: %{
+                 timestamp: {NaiveDateTime.local_now(), :receiver_time},
+                 altitude: 4.0,
+                 course: 0.0,
+                 latitude: {45.78033333333333, :hundredth_minute},
+                 longitude: {13.583833333333333, :hundredth_minute},
+                 speed: 0.0,
+                 symbol: "/s"
+               }
+             } == expected_result
+    end
+
+    # ---------------------------------------------------------------
+    test "Live test 20: aprs.fi seems to be very flexible about parsing out of spec telemetry reports" do
+      assert {:ok, expected_result} =
+               AprsParser.parse(
+                 "IR1UFB>APMI06,TCPIP*,qAC,T2CSNGRAD:T#027,233,130,017,00154,081,00000000"
+               )
+
+      assert %AprsParser{
+               raw: "IR1UFB>APMI06,TCPIP*,qAC,T2CSNGRAD:T#027,233,130,017,00154,081,00000000",
+               from: "IR1UFB",
+               to: "APMI06",
+               path: ["TCPIP*", "qAC", "T2CSNGRAD"],
+               comment: "",
+               position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}},
+               telemetry: %{
+                 values: [233, 130, 17, 154, 81],
+                 bits: [0, 0, 0, 0, 0, 0, 0, 0],
+                 sequence_counter: 27
+               }
+             } == expected_result
+    end
+
+    # ---------------------------------------------------------------
+    test "Live test 21: Apparently Lat/Long directions can be lower case" do
+      assert {:ok, expected_result} =
+               AprsParser.parse(
+                 "LAGRNG>APN391,qAR,KA5WMY-5:!2952.51NS09653.75w#PHG5370 LaGrange, TX Digipeater - KA5WMY"
+               )
+
+      assert %AprsParser{
+               raw:
+                 "LAGRNG>APN391,qAR,KA5WMY-5:!2952.51NS09653.75w#PHG5370 LaGrange, TX Digipeater - KA5WMY",
+               from: "LAGRNG",
+               to: "APN391",
+               path: ["qAR", "KA5WMY-5"],
+               comment: " LaGrange, TX Digipeater - KA5WMY",
+               position: %{
+                 timestamp: {NaiveDateTime.local_now(), :receiver_time},
+                 directivity: :omnidirectional,
+                 gain: 7.0,
+                 height: 24.384,
+                 latitude: {29.875166666666665, :hundredth_minute},
+                 longitude: {-96.89583333333333, :hundredth_minute},
+                 power: 25.0,
+                 symbol: "S#"
+               }
+             } == expected_result
+    end
+
+    # ---------------------------------------------------------------
+    test "Live test 22: Unimplemented Data Type identifier _ for weather" do
+      assert {:ok, expected_result} =
+               AprsParser.parse(
+                 "KB2TSV>APW280,WIDE2-1,qAR,W3ZO-10:_03062214c000s255g255t076r000p000P000h00b00000wDVP"
+               )
+
+      now = NaiveDateTime.utc_now()
+
+      expected_time =
+        NaiveDateTime.new(
+          now.year,
+          String.to_integer("03"),
+          String.to_integer("06"),
+          String.to_integer("22"),
+          String.to_integer("14"),
+          0,
+          0
+        )
+        |> elem(1)
+
+      assert %AprsParser{
+               raw:
+                 "KB2TSV>APW280,WIDE2-1,qAR,W3ZO-10:_03062214c000s255g255t076r000p000P000h00b00000wDVP",
+               from: "KB2TSV",
+               to: "APW280",
+               path: ["WIDE2-1", "qAR", "W3ZO-10"],
+               comment: "",
+               position: %{
+                 timestamp: {expected_time, :sender_time}
+               },
+               weather: %{
+                 wind_speed: 113.9952,
+                 wind_direction: 0.0,
+                 gust_speed: 113.9952,
+                 temperature: 24.444444444444446,
+                 rainfall_last_hour: 0.0,
+                 rainfall_last_24_hours: 0.0,
+                 rainfall_since_midnight: 0.0,
+                 humidity: 0.0,
+                 barometric_pressure: 0.0,
+                 wx_unit: "Unknown 'DVP'",
+                 software_type: "Unknown 'w'"
+               }
+             } == expected_result
+    end
+
+    # ---------------------------------------------------------------
+    test "Live test 23: Raw gps data" do
+      assert {:ok, expected_result} =
+               AprsParser.parse(
+                 "NE4SC-12>APRS,WIDE2-2,qAR,KW4BET-3:$ULTW0000000000FD00002805000E8938000103710165045B00000000"
+               )
+
+      assert %AprsParser{
+               raw:
+                 "NE4SC-12>APRS,WIDE2-2,qAR,KW4BET-3:$ULTW0000000000FD00002805000E8938000103710165045B00000000",
+               from: "NE4SC-12",
+               to: "APRS",
+               path: ["WIDE2-2", "qAR", "KW4BET-3"],
+               position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}},
+               raw_gps: "ULTW0000000000FD00002805000E8938000103710165045B00000000"
+             } == expected_result
+    end
+  end
+
+  # ---------------------------------------------------------------
+  test "Live test 24: aprs.fi allows empty fields in telemetry reports (and fewer than 8 bits in the digital value field)" do
+    assert {:ok, expected_result} =
+             AprsParser.parse(
+               "VU2IB-13>APRS,TCPIP*,qAC,T2CS:T#050,250,055,000,045,,1110,Solar Power WX Station"
+             )
+
+    assert %AprsParser{
+             raw:
+               "VU2IB-13>APRS,TCPIP*,qAC,T2CS:T#050,250,055,000,045,,1110,Solar Power WX Station",
+             from: "VU2IB-13",
+             to: "APRS",
+             path: ["TCPIP*", "qAC", "T2CS"],
+             comment: "Solar Power WX Station",
+             position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}},
+             telemetry: %{
+               values: [250, 55, 0, 45],
+               bits: [1, 1, 1, 0],
+               sequence_counter: 50
+             }
+           } == expected_result
+  end
+
+  # ---------------------------------------------------------------
+  test "Live test 25: Weather parsing is still rejecting too many parameter lists 1" do
+    assert {:ok, expected_result} =
+             AprsParser.parse(
+               "DB0BIN>APGE01,TCPIP*,qAC,T2CSNGRAD:!4818.27N/00845.69E_180/000g...t038r...p000h100b10155"
+             )
+
+    assert %AprsParser{
+             raw:
+               "DB0BIN>APGE01,TCPIP*,qAC,T2CSNGRAD:!4818.27N/00845.69E_180/000g...t038r...p000h100b10155",
+             from: "DB0BIN",
+             to: "APGE01",
+             path: ["TCPIP*", "qAC", "T2CSNGRAD"],
+             comment: "",
+             position: %{
+               timestamp: {NaiveDateTime.local_now(), :receiver_time},
+               symbol: "/_",
+               latitude: {48.3045, :hundredth_minute},
+               longitude: {8.7615, :hundredth_minute}
+             },
+             weather: %{
+               wind_direction: 180.0,
+               wind_speed: 0.0,
+               temperature: 3.3333333333333335,
+               humidity: 100.0,
+               barometric_pressure: 1015.5,
+               rainfall_last_24_hours: 0.0
+             }
+           } == expected_result
+  end
+
+  # ---------------------------------------------------------------
+  test "Live test 26: aprs.fi accepts 3 digits for humidity" do
+    assert {:ok, expected_result} =
+             AprsParser.parse(
+               "OK1IRG-6>APRSWX,TCPIP*,qAC,T2CZECH:=5022.73N/01345.88E_045/006g010t041h057b101332P000"
+             )
+
+    assert %AprsParser{
+             raw:
+               "OK1IRG-6>APRSWX,TCPIP*,qAC,T2CZECH:=5022.73N/01345.88E_045/006g010t041h057b101332P000",
+             to: "APRSWX",
+             from: "OK1IRG-6",
+             path: ["TCPIP*", "qAC", "T2CZECH"],
+             comment: "",
+             position: %{
+               timestamp: {NaiveDateTime.local_now(), :receiver_time},
+               symbol: "/_",
+               latitude: {50.37883333333333, :hundredth_minute},
+               longitude: {13.764666666666667, :hundredth_minute}
+             },
+             weather: %{
+               wind_direction: 45.0,
+               wind_speed: 6.0,
+               temperature: 5.0,
+               humidity: 57.0,
+               gust_speed: 4.4704,
+               barometric_pressure: 10133.2,
+               rainfall_since_midnight: 0.0
+             }
+           } == expected_result
+  end
+
+  # ---------------------------------------------------------------
+  test "Live test 27: Weather parsing is still rejecting too many parameter lists 3" do
+    assert {:ok, expected_result} =
+             AprsParser.parse(
+               "9M8ZAL-12>APRS,TCPIP*,qAC,T2LAUSITZ:=0139.24N/11012.10E_.../...g...t088r...p...P...h99b10082L000APRSuWX 0.1.7h | Malaysia microWX Node | KV50S| AC-powered: 5.00 volts"
+             )
+
+    assert %AprsParser{
+             raw:
+               "9M8ZAL-12>APRS,TCPIP*,qAC,T2LAUSITZ:=0139.24N/11012.10E_.../...g...t088r...p...P...h99b10082L000APRSuWX 0.1.7h | Malaysia microWX Node | KV50S| AC-powered: 5.00 volts",
+             from: "9M8ZAL-12",
+             to: "APRS",
+             path: ["TCPIP*", "qAC", "T2LAUSITZ"],
+             comment: "APRSuWX 0.1.7h | Malaysia microWX Node  AC-powered: 5.00 volts",
+             position: %{
+               timestamp: {NaiveDateTime.local_now(), :receiver_time},
+               symbol: "/_",
+               latitude: {1.654, :hundredth_minute},
+               longitude: {110.20166666666667, :hundredth_minute}
+             },
+             raw_gps: nil,
+             status: nil,
+             telemetry: %{values: [4843, 1415], sequence_counter: -49},
+             weather: %{
+               temperature: 31.111111111111114,
+               humidity: 99.0,
+               barometric_pressure: 1008.2,
+               luminosity: 0.0
+             }
+           } == expected_result
+  end
+
+  # ---------------------------------------------------------------
+  test "Live test 28: Weather parsing is still rejecting too many parameter lists 4" do
+    assert {:ok, expected_result} =
+             AprsParser.parse(
+               "HB9SZU-6>APYSNR,TCPIP*,qAS,HB9SZU:@071558z4611.51N/00901.48E_.../...g...t056r000P000b10182h52Node-RED WX Station Bellinzona"
+             )
+
+    now = NaiveDateTime.utc_now()
+
+    expected_time =
+      NaiveDateTime.new(
+        now.year,
+        now.month,
+        String.to_integer("07"),
+        String.to_integer("15"),
+        String.to_integer("58"),
+        0,
+        0
+      )
+      |> elem(1)
+
+    assert %AprsParser{
+             comment: "Node-RED WX Station Bellinzona",
+             raw:
+               "HB9SZU-6>APYSNR,TCPIP*,qAS,HB9SZU:@071558z4611.51N/00901.48E_.../...g...t056r000P000b10182h52Node-RED WX Station Bellinzona",
+             from: "HB9SZU-6",
+             to: "APYSNR",
+             path: ["TCPIP*", "qAS", "HB9SZU"],
+             position: %{
+               timestamp: {expected_time, :sender_time},
+               symbol: "/_",
+               latitude: {46.191833333333335, :hundredth_minute},
+               longitude: {9.024666666666667, :hundredth_minute}
+             },
+             weather: %{
+               temperature: 13.333333333333334,
+               rainfall_last_hour: 0.0,
+               rainfall_since_midnight: 0.0,
+               humidity: 52.0,
+               barometric_pressure: 1018.2
+             }
+           } == expected_result
+  end
+
+  # ---------------------------------------------------------------
+  test "Live test 29: Bad weather data, 't' parameter too long in this case, so it is extracted as a comment" do
+    assert {:ok, expected_result} =
+             AprsParser.parse(
+               "KB2TSV>APW280,WIDE2-1,qAR,W3ZO-10:_03062214c000s255g255t3276r000p000P000h00b00000wDVP"
+             )
+
+    now = NaiveDateTime.utc_now()
+
+    expected_time =
+      NaiveDateTime.new(
+        now.year,
+        String.to_integer("03"),
+        String.to_integer("06"),
+        String.to_integer("22"),
+        String.to_integer("14"),
+        0,
+        0
+      )
+      |> elem(1)
+
+    assert %AprsParser{
+             raw:
+               "KB2TSV>APW280,WIDE2-1,qAR,W3ZO-10:_03062214c000s255g255t3276r000p000P000h00b00000wDVP",
+             from: "KB2TSV",
+             to: "APW280",
+             path: ["WIDE2-1", "qAR", "W3ZO-10"],
+             comment: "6r000p000P000h00b00000wDVP",
+             position: %{timestamp: {expected_time, :sender_time}},
+             weather: %{
+               temperature: 163.88888888888889,
+               gust_speed: 113.9952,
+               wind_direction: 0.0,
+               wind_speed: 113.9952
+             }
+           } == expected_result
+  end
+
+  # ---------------------------------------------------------------
+  test "Live test 30: aprs.fi allows no digital data at all in the telemetry" do
+    assert {:ok, expected_result} =
+             AprsParser.parse(
+               "IZ1DNG-10>WIDE1-1,WIDE2-2,qAR,IR1UFB:T#55,184,130,165,126,1>/A=10731"
+             )
+
+    assert %AprsParser{
+             raw: "IZ1DNG-10>WIDE1-1,WIDE2-2,qAR,IR1UFB:T#55,184,130,165,126,1>/A=10731",
+             comment: ">/A=10731",
+             from: "IZ1DNG-10",
+             to: "WIDE1-1",
+             path: ["WIDE2-2", "qAR", "IR1UFB"],
+             position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}},
+             telemetry: %{bits: [1], sequence_counter: 55, values: [184, 130, 165, 126]}
+           } == expected_result
   end
 end
