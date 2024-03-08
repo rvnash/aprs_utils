@@ -17,16 +17,19 @@ defmodule APRSUtils.AprsIs do
              :inet,
              active: false,
              packet: :line
-           ]),
+           ])
+           |> dbg(),
          :ok <-
            :gen_tcp.send(
              socket,
              "user #{opts[:username]} pass #{opts[:password]} #{opts[:app_name]} #{opts[:app_version]} filter #{opts[:filter]}\r\n"
-           ),
-         {:ok, <<"# ", server_version::binary>>} <- :gen_tcp.recv(socket, 0),
-         :ok <- opts[:client_module].connected(server_version),
-         listener <- Process.spawn(fn -> listen(socket, genserver_pid) end, [:link]) do
-      {:ok, %{socket: socket, listener: listener, client_module: opts[:client_module]}}
+           )
+           |> dbg(),
+         {:ok, <<"# ", server_version::binary>>} <- :gen_tcp.recv(socket, 0) |> dbg(),
+         :ok <- opts[:client_module].connected(server_version) |> dbg(),
+         listener <- Process.spawn(fn -> listen(socket, genserver_pid) end, [:link]) |> dbg() do
+      {:ok,
+       %{socket: socket, listener: listener, client_module: opts[:client_module], packet_count: 0}}
     else
       {:error, reason} -> {:stop, reason}
     end
@@ -42,9 +45,8 @@ defmodule APRSUtils.AprsIs do
 
       {:ok, data} ->
         GenServer.cast(genserver_pid, {:recieved, data})
+        listen(socket, genserver_pid)
     end
-
-    listen(socket, genserver_pid)
   end
 
   @impl true
@@ -54,8 +56,8 @@ defmodule APRSUtils.AprsIs do
   end
 
   def handle_cast({:recieved, packet}, state) do
-    state.client_module.got_packet(String.trim(packet))
-    {:noreply, state}
+    state.client_module.got_packet(String.trim(packet), state.packet_count + 1)
+    {:noreply, %{state | packet_count: state.packet_count + 1}}
   end
 
   def handle_cast({:error, reason}, state) do
@@ -70,7 +72,7 @@ defmodule APRSUtils.AprsIs do
 end
 
 defmodule APRSUtilsIsClient do
-  @callback got_packet(binary()) :: :ok
+  @callback got_packet(binary(), integer()) :: :ok
   @callback connected(binary()) :: :ok
   @callback disconnected() :: :ok
   @callback got_comment(binary()) :: :ok

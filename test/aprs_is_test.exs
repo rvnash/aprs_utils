@@ -3,10 +3,11 @@ defmodule Balloons.Utils.AprsIsTest do
   alias APRSUtils.AprsIs
   alias APRSUtils.AprsParser
 
+  @timeout 600_000
   test "start_link/1 starts the GenServer" do
     {:ok, pid} =
       AprsIs.start_link(
-        host: "noam.aprs2.net",
+        host: "rotate.aprs.net",
         port: 14580,
         username: "KC3ARY",
         password: "22969",
@@ -25,20 +26,26 @@ end
 defmodule Client do
   alias APRSUtils.AprsParser
   @behaviour APRSUtilsIsClient
-  def got_packet(packet) do
+  def got_packet(packet, packet_count) do
     try do
       case AprsParser.parse(packet) do
         {:ok, %AprsParser{} = _parsed} ->
           :ok
 
         {:error, reason} ->
-          IO.puts("\nError parsing packet: #{reason.error_message}")
+          IO.puts(
+            "\nError parsing packet (#{packet_count}): #{String.replace_invalid(reason.error_message)}"
+          )
+
           IO.puts("Packet: #{String.replace_invalid(packet)}")
           puts_link(packet)
       end
     rescue
       e ->
-        IO.puts("\nException raised parsing packet: #{String.replace_invalid(packet)}")
+        IO.puts(
+          "\nException raised parsing packet (#{packet_count}): #{String.replace_invalid(packet)}"
+        )
+
         puts_link(packet)
         reraise e, __STACKTRACE__
     end

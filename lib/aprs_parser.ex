@@ -8,15 +8,16 @@ defmodule APRSUtils.AprsParser do
     APRS 1.2 Addendum: http://www.aprs.org/aprs12.html
 
   """
-  @enforce_keys [:raw, :from, :to, :path]
+
   defstruct raw: nil,
-            # The AX.25 routing information
             to: nil,
             from: nil,
             path: [],
             timestamp: nil,
             symbol: nil,
             position: nil,
+            course: nil,
+            antenna: nil,
             weather: nil,
             telemetry: nil,
             message: nil,
@@ -120,15 +121,15 @@ defmodule APRSUtils.AprsParser do
   end
 
   @regexs [
-    ~r/(.{1,10}?)>(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?):(.*)/,
-    ~r/(.{1,10}?)>(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?):(.*)/,
-    ~r/(.{1,10}?)>(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?):(.*)/,
-    ~r/(.{1,10}?)>(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?):(.*)/,
-    ~r/(.{1,10}?)>(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?):(.*)/,
-    ~r/(.{1,10}?)>(.{1,10}?),(.{1,10}?),(.{1,10}?),(.{1,10}?):(.*)/,
-    ~r/(.{1,10}?)>(.{1,10}?),(.{1,10}?),(.{1,10}?):(.*)/,
-    ~r/(.{1,10}?)>(.{1,10}?),(.{1,10}?):(.*)/,
-    ~r/(.{1,10}?)>(.{1,10}?):(.*)/
+    ~r/^([^,:]{1,10}?)>([^,:]{1,10}?):(.*)/,
+    ~r/^([^,:]{1,10}?)>([^,:]{1,10}?),([^,:]{1,10}?):(.*)/,
+    ~r/^([^,:]{1,10}?)>([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?):(.*)/,
+    ~r/^([^,:]{1,10}?)>([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?):(.*)/,
+    ~r/^([^,:]{1,10}?)>([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?):(.*)/,
+    ~r/^([^,:]{1,10}?)>([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?):(.*)/,
+    ~r/^([^,:]{1,10}?)>([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?):(.*)/,
+    ~r/^([^,:]{1,10}?)>([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?):(.*)/,
+    ~r/^([^,:]{1,10}?)>([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?),([^,:]{1,10}?):(.*)/
   ]
   # Extract the FROM/TO/PATH, See chapter 4 page 13 of http://www.aprs.org/doc/APRS101.PDF
   defp get_paths({aprs, aprs_string}) do
@@ -203,7 +204,7 @@ defmodule APRSUtils.AprsParser do
       {add_info(aprs, timestamp: {parse_timestamp(time, time_indicator), :sender_time}), rest}
       |> parse_w_data_identifier("!")
     else
-      throw({{aprs, msg}, "Timestamp contains digits: #{time}"})
+      throw({{aprs, msg}, "Timestamp contains non-digit characters: #{time}"})
     end
   end
 
@@ -315,11 +316,11 @@ defmodule APRSUtils.AprsParser do
   defp validate_strings({aprs, msg}) do
     aprs_map = Map.from_struct(aprs)
     validate_string(aprs_map, [:symbol], "Symbol")
-    validate_string(aprs_map, [:message], "Message")
+    # validate_string(aprs_map, [:message], "Message")
     validate_string(aprs_map, [:from], "From")
     validate_string(aprs_map, [:to], "To")
-    validate_string(aprs_map, [:comment], "Comment")
-    validate_string(aprs_map, [:status], "Status")
+    # validate_string(aprs_map, [:comment], "Comment")
+    # validate_string(aprs_map, [:status], "Status")
     validate_string(aprs_map, [:raw_gps], "Raw GPS")
     validate_string(aprs_map, [:weather, :wx_unit], "WX Unit")
     validate_string(aprs_map, [:weather, :softwary_type], "Software Type")
@@ -356,20 +357,29 @@ defmodule APRSUtils.AprsParser do
     {aprs, rest} |> add_telemetry_report(nil)
   end
 
-  # aprs.fi is tolernt of 1-4 digits in the sequence number
-  defp parse_telemetry_report({aprs, <<"#", sequence_no::binary-size(1), ",", rest::binary>>}) do
+  # aprs.fi is tolernt of 1-5 digits in the sequence number
+  defp parse_telemetry_report({aprs, <<"#", sequence_no::binary-size(1), ",", rest::binary>>})
+       when is_all_digits(sequence_no) do
     {aprs, rest} |> add_telemetry_report(sequence_no)
   end
 
-  defp parse_telemetry_report({aprs, <<"#", sequence_no::binary-size(2), ",", rest::binary>>}) do
+  defp parse_telemetry_report({aprs, <<"#", sequence_no::binary-size(2), ",", rest::binary>>})
+       when is_all_digits(sequence_no) do
     {aprs, rest} |> add_telemetry_report(sequence_no)
   end
 
-  defp parse_telemetry_report({aprs, <<"#", sequence_no::binary-size(3), ",", rest::binary>>}) do
+  defp parse_telemetry_report({aprs, <<"#", sequence_no::binary-size(3), ",", rest::binary>>})
+       when is_all_digits(sequence_no) do
     {aprs, rest} |> add_telemetry_report(sequence_no)
   end
 
-  defp parse_telemetry_report({aprs, <<"#", sequence_no::binary-size(4), ",", rest::binary>>}) do
+  defp parse_telemetry_report({aprs, <<"#", sequence_no::binary-size(4), ",", rest::binary>>})
+       when is_all_digits(sequence_no) do
+    {aprs, rest} |> add_telemetry_report(sequence_no)
+  end
+
+  defp parse_telemetry_report({aprs, <<"#", sequence_no::binary-size(5), ",", rest::binary>>})
+       when is_all_digits(sequence_no) do
     {aprs, rest} |> add_telemetry_report(sequence_no)
   end
 
@@ -700,17 +710,16 @@ defmodule APRSUtils.AprsParser do
             se::binary-size(1), symbol_code::binary-size(1), sym_table_id::binary-size(1),
             rest::binary>> = _msg}
        ) do
-    {lat, long, speed, course, mic_e_message} =
+    {lat, long, speed, direction, mic_e_message} =
       parse_mic_e(aprs.to, long_degrees, long_minutes, long_hundredths, sp, dc, se)
 
     {aprs
      |> add_info(message: mic_e_message)
      |> add_info(:position, %{
        latitude: {lat, :hundredth_minute},
-       longitude: {long, :hundredth_minute},
-       course: course,
-       speed: speed
+       longitude: {long, :hundredth_minute}
      })
+     |> add_info(:course, %{direction: direction, speed: speed})
      |> add_info(symbol: sym_table_id <> symbol_code), rest}
   end
 
@@ -880,10 +889,10 @@ defmodule APRSUtils.AprsParser do
     speed = if speed >= 800, do: speed - 800, else: speed
     speed = speed * @knots_to_meters_per_second
 
-    course = rem(dc, 10) * 100 + byte_val(se) - 28
-    course = 1.0 * if course >= 400, do: course - 400, else: course
+    direction = rem(dc, 10) * 100 + byte_val(se) - 28
+    direction = 1.0 * if direction >= 400, do: direction - 400, else: direction
 
-    {lat, long, speed, course, msg}
+    {lat, long, speed, direction, msg}
   end
 
   defp parse_position_uncompressed(
@@ -942,19 +951,19 @@ defmodule APRSUtils.AprsParser do
   end
 
   defp parse_cs(aprs, <<c::binary-size(1), s::binary-size(1)>> = _cs, _comp_type) when c != " " do
-    case String.to_charlist(c) do
+    case :erlang.binary_to_list(c) do
       [c] when c >= 33 and c <= 122 ->
         # Course/Speed (c between ! and z inclusive)
-        [s] = String.to_charlist(s)
+        [s] = :erlang.binary_to_list(s)
 
-        add_info(aprs, :position, %{
-          course: (c - 33) * 4.0,
+        add_info(aprs, :course, %{
+          direction: (c - 33) * 4.0,
           speed: (Float.pow(1.08, s - 33) - 1.0) * @knots_to_meters_per_second
         })
 
       [c] when c == 123 ->
         # Pre-Calculated Radio Range (c equals { )
-        [s] = String.to_charlist(s)
+        [s] = :erlang.binary_to_list(s)
 
         add_info(aprs, :position, %{
           range: 2.0 * Float.pow(1.08, s - 33) * @meters_per_mile
@@ -973,13 +982,13 @@ defmodule APRSUtils.AprsParser do
   end
 
   defp parse_weather_data(
-         {%__MODULE__{symbol: symbol, position: %{course: course, speed: speed}} = aprs, msg}
+         {%__MODULE__{symbol: symbol, course: %{direction: direction, speed: speed}} = aprs, msg}
        )
        when symbol in ["/_"] do
     {
       aprs
-      |> add_info(position: aprs.position |> Map.drop([:course, :speed]))
-      |> add_info(:weather, %{wind_speed: speed, wind_direction: course}),
+      |> add_info(course: nil)
+      |> add_info(:weather, %{wind_speed: speed, wind_direction: direction}),
       msg
     }
     |> add_weather_parameters()
@@ -1207,9 +1216,9 @@ defmodule APRSUtils.AprsParser do
   # Handle 15 byte data extensions (Course/Speed/Bearing,Range/Number,Range,Quality), See Chapter 7 (pg. 30) of http://www.aprs.org/doc/APRS101.PDF
   defp parse_data_extension_15({aprs, <<data_extension::binary-size(15), comment::binary>> = msg}) do
     case Regex.run(@data_extension_course_speed_bearing_number_range_quality, data_extension) do
-      [_, course, speed, bearing, nrq] ->
+      [_, direction, speed, bearing, nrq] ->
         <<number::binary-size(1), range::binary-size(1), quality::binary-size(1)>> = nrq
-        add_df_report({aprs, comment}, course, speed, bearing, number, range, quality)
+        add_df_report({aprs, comment}, direction, speed, bearing, number, range, quality)
 
       _ ->
         {aprs, msg}
@@ -1225,8 +1234,8 @@ defmodule APRSUtils.AprsParser do
   # Handle 7 byte data extensions (PHG, DFS, RNG, Course/Speed), See Chapter 7 (pg. 27) of http://www.aprs.org/doc/APRS101.PDF
   defp parse_data_extension_7({aprs, <<data_extension::binary-size(7), msg2::binary>> = msg}) do
     if p = Regex.run(@data_extension_course_speed, data_extension) do
-      [_, course, speed] = p
-      add_df_report({aprs, msg2}, course, speed)
+      [_, direction, speed] = p
+      add_df_report({aprs, msg2}, direction, speed)
     else
       if p = Regex.run(@data_extension_phg, data_extension) do
         [_, power_code, height_code, gain_code, directivity_code] = p
@@ -1249,40 +1258,53 @@ defmodule APRSUtils.AprsParser do
 
   defp parse_data_extension_7(info), do: info
 
-  defp add_df_report({aprs, msg}, course, speed) do
-    {add_info(aprs, :position, %{
-       course: to_float(course),
+  defp add_df_report({aprs, msg}, direction, speed) do
+    {add_info(aprs, :course, %{
+       direction: to_float(direction),
        speed: to_float(speed) * @knots_to_meters_per_second
      }), msg}
   end
 
-  defp add_df_report({aprs, msg}, course, speed, bearing, number, range, quality) do
+  defp add_df_report({aprs, msg}, direction, speed, bearing, number, range, quality) do
     {aprs
-     |> add_info(:position, %{
-       course: to_float(course),
+     |> add_info(:course, %{
+       direction: to_float(direction),
        speed: to_float(speed) * @knots_to_meters_per_second,
        bearing: to_float(bearing),
-       N: Integer.parse(number) |> elem(0),
-       range: Float.pow(2.0, to_float(range)) * @meters_per_mile,
+       report_quality:
+         case number do
+           "0" -> :useless
+           "1" -> 1
+           "2" -> 2
+           "3" -> 3
+           "4" -> 4
+           "5" -> 5
+           "6" -> 6
+           "7" -> 7
+           "8" -> 8
+           "9" -> :manual
+           _ -> :useless
+         end,
        bearing_accuracy:
          case quality do
            "0" -> :useless
-           "1" -> :less_240
-           "2" -> :less_120
-           "3" -> :less_64
-           "4" -> :less_32
-           "5" -> :less_16
-           "6" -> :less_8
-           "7" -> :less_4
-           "8" -> :less_2
-           "9" -> :less_1
+           "1" -> :less_than_240_degree
+           "2" -> :less_than_120_degree
+           "3" -> :less_than_64_degree
+           "4" -> :less_than_32_degree
+           "5" -> :less_than_16_degree
+           "6" -> :less_than_8_degree
+           "7" -> :less_than_4_degree
+           "8" -> :less_than_2_degree
+           "9" -> :less_than_1_degree
            _ -> :useless
-         end
+         end,
+       range: Float.pow(2.0, to_float(range)) * @meters_per_mile
      }), msg}
   end
 
   defp add_phg_report({aprs, msg}, power_code, height_code, gain_code, directivity_code) do
-    {add_info(aprs, :position, %{
+    {add_info(aprs, :antenna, %{
        power:
          case power_code do
            "0" -> 0.0
@@ -1302,14 +1324,14 @@ defmodule APRSUtils.AprsParser do
   end
 
   defp add_dfs_report({aprs, msg}, strength_code, height_code, gain_code, directivity_code) do
-    {add_info(aprs, :position, %{
+    {add_info(aprs, :antenna, %{
        strength: to_float(strength_code)
      }), msg}
     |> add_hgd_to_report(height_code, gain_code, directivity_code)
   end
 
   defp add_hgd_to_report({aprs, msg}, height_code, gain_code, directivity_code) do
-    {add_info(aprs, :position, %{
+    {add_info(aprs, :antenna, %{
        height:
          case height_code do
            "*" -> 2.5 / 16.0
@@ -1358,7 +1380,7 @@ defmodule APRSUtils.AprsParser do
   end
 
   defp add_rng_report({aprs, msg}, range) do
-    {add_info(aprs, :position, %{
+    {add_info(aprs, :antenna, %{
        range: to_float(range) * @meters_per_mile
      }), msg}
   end
@@ -1528,28 +1550,6 @@ defmodule APRSUtils.AprsParser do
     end
   end
 
-  # DHM - Zulu time
-  # Note that only "z" appears in the spec: Chapter 6, Page 22 of http://www.aprs.org/doc/APRS101.PDF
-  # But I'm seeing a lot of packets with "a", "Z", " ", and others so I'm adding them
-  defp parse_timestamp(
-         <<day::binary-size(2), hour::binary-size(2), minute::binary-size(2)>>,
-         time_indicator
-       )
-       when time_indicator in ["z", "a", "Z", " ", "#", "\\"] do
-    now = now()
-
-    NaiveDateTime.new(
-      now.year,
-      now.month,
-      String.to_integer(day),
-      String.to_integer(hour),
-      String.to_integer(minute),
-      0,
-      0
-    )
-    |> elem(1)
-  end
-
   # DHM - Local time
   # Note that only "/" appears in the spec: Chapter 6, Page 22 of http://www.aprs.org/doc/APRS101.PDF
   # It is recommended that Zulu time be used in the future
@@ -1592,11 +1592,27 @@ defmodule APRSUtils.AprsParser do
     |> elem(1)
   end
 
+  # DHM - Zulu time
+  # Note that only "z" appears in the spec: Chapter 6, Page 22 of http://www.aprs.org/doc/APRS101.PDF
+  # But I'm seeing a lot of packets with "a", "Z", " ", and others so I'm just accepting everything as
+  # Zulu time
   defp parse_timestamp(
-         <<_hour::binary-size(2), _minute::binary-size(2), _second::binary-size(2)>>,
-         time_indicator
-       ),
-       do: throw({{nil, nil}, "Unknown time indicator #{time_indicator}"})
+         <<day::binary-size(2), hour::binary-size(2), minute::binary-size(2)>>,
+         _time_indicator
+       ) do
+    now = now()
+
+    NaiveDateTime.new(
+      now.year,
+      now.month,
+      String.to_integer(day),
+      String.to_integer(hour),
+      String.to_integer(minute),
+      0,
+      0
+    )
+    |> elem(1)
+  end
 
   # MDHM - Zulu time w/o a time indicator (from Positionless Weather Report)
   defp parse_timestamp_mdhm(
@@ -1633,7 +1649,8 @@ defmodule APRSUtils.AprsParser do
 
   defp decode_base91_ascii_string(base91) do
     base91
-    |> String.to_charlist()
+    # |> String.to_charlist()
+    |> :erlang.binary_to_list()
     |> Enum.reverse()
     |> Enum.with_index()
     |> Enum.reduce(0, fn {char, index}, acc ->

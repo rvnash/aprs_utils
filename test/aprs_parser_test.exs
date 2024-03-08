@@ -84,11 +84,13 @@ defmodule AprsParserTest do
                path: [],
                timestamp: {expected_time(9, 23, 45), :sender_time},
                symbol: "/>",
+               course: %{
+                 direction: 123.0,
+                 speed: 234.586464
+               },
                position: %{
                  latitude: {49.05833333333333, :hundredth_minute},
-                 longitude: {-72.02916666666667, :hundredth_minute},
-                 course: 123.0,
-                 speed: 234.586464
+                 longitude: {-72.02916666666667, :hundredth_minute}
                }
              } == expected_result
     end
@@ -105,15 +107,17 @@ defmodule AprsParserTest do
                path: [],
                timestamp: {expected_time(9, 23, 45), :sender_time},
                symbol: "/>",
-               position: %{
-                 latitude: {49.05833333333333, :hundredth_minute},
-                 longitude: {-72.02916666666667, :hundredth_minute},
-                 course: 88.0,
+               course: %{
+                 direction: 88.0,
                  speed: 18.519984,
                  bearing: 270.0,
-                 bearing_accuracy: :less_1,
-                 N: 7,
-                 range: 6437.376
+                 range: 6437.376,
+                 bearing_accuracy: :less_than_1_degree,
+                 report_quality: 7
+               },
+               position: %{
+                 latitude: {49.05833333333333, :hundredth_minute},
+                 longitude: {-72.02916666666667, :hundredth_minute}
                }
              } == expected_result
     end
@@ -130,13 +134,10 @@ defmodule AprsParserTest do
                path: [],
                timestamp: {expected_time(9, 23, 45), :sender_time},
                symbol: "/>",
+               antenna: %{power: 25.0, height: 6.096, gain: 3.0, directivity: 90.0},
                position: %{
                  latitude: {49.05833333333333, :hundredth_minute},
-                 longitude: {-72.02916666666667, :hundredth_minute},
-                 power: 25.0,
-                 height: 6.096,
-                 gain: 3.0,
-                 directivity: 90.0
+                 longitude: {-72.02916666666667, :hundredth_minute}
                }
              } == expected_result
     end
@@ -153,10 +154,10 @@ defmodule AprsParserTest do
                path: [],
                timestamp: {expected_time(9, 23, 45), :sender_time},
                symbol: "/>",
+               antenna: %{range: 80467.2},
                position: %{
                  latitude: {49.05833333333333, :hundredth_minute},
-                 longitude: {-72.02916666666667, :hundredth_minute},
-                 range: 80467.2
+                 longitude: {-72.02916666666667, :hundredth_minute}
                }
              } == expected_result
     end
@@ -173,13 +174,10 @@ defmodule AprsParserTest do
                path: [],
                timestamp: {expected_time(9, 23, 45), :sender_time},
                symbol: "/>",
+               antenna: %{strength: 2.0, height: 6.096, gain: 3.0, directivity: 90.0},
                position: %{
                  latitude: {49.05833333333333, :hundredth_minute},
-                 longitude: {-72.02916666666667, :hundredth_minute},
-                 strength: 2.0,
-                 height: 6.096,
-                 gain: 3.0,
-                 directivity: 90.0
+                 longitude: {-72.02916666666667, :hundredth_minute}
                }
              } == expected_result
     end
@@ -263,12 +261,14 @@ defmodule AprsParserTest do
                path: ["TF3RPF", "WIDE2*", "qAR", "TF3SUT-2"],
                timestamp: {now(), :receiver_time},
                symbol: "/O",
+               course: %{
+                 direction: 88.0,
+                 speed: 18.63934126818573
+               },
                position: %{
                  latitude: {64.11987367625208, :hundredth_minute},
                  longitude: {-19.070654142799384, :hundredth_minute},
-                 altitude: 12450.7752,
-                 course: 88.0,
-                 speed: 18.63934126818573
+                 altitude: 12450.7752
                },
                telemetry: %{values: [2670, 176, 2199, 10], sequence_counter: 215},
                comment: "Xa/A=040849h"
@@ -356,12 +356,14 @@ defmodule AprsParserTest do
                path: ["KB3FCZ-2", "WIDE1*", "WIDE2-1", "qAO", "KC3VKP-1"],
                timestamp: {now(), :receiver_time},
                symbol: "/>",
+               course: %{
+                 direction: 251.0,
+                 speed: 10.28888
+               },
                position: %{
                  latitude: {33.42733333333334, :hundredth_minute},
                  longitude: {-12.129, :hundredth_minute},
-                 altitude: 61.0,
-                 course: 251.0,
-                 speed: 10.28888
+                 altitude: 61.0
                },
                telemetry: %{sequence_counter: 7, values: [495, 629]},
                message: "Committed",
@@ -388,12 +390,11 @@ defmodule AprsParserTest do
                path: ["KB3FCZ-2", "WIDE1*", "WIDE2-1", "qAR", "WA3YMM-1"],
                symbol: "/>",
                timestamp: {now(), :receiver_time},
+               course: %{direction: 315.0, speed: 12.346656},
                position: %{
                  latitude: {40.351, :hundredth_minute},
                  longitude: {-79.82083333333334, :hundredth_minute},
-                 altitude: 281.0,
-                 course: 315.0,
-                 speed: 12.346656
+                 altitude: 281.0
                },
                message: "Special",
                telemetry: %{sequence_counter: 5, values: [493, 627]},
@@ -413,12 +414,11 @@ defmodule AprsParserTest do
                path: [],
                symbol: "/[",
                timestamp: {now(), :receiver_time},
+               course: %{direction: 305.0, speed: 0.0},
                position: %{
                  latitude: {35.58683333333333, :hundredth_minute},
                  longitude: {139.701, :hundredth_minute},
-                 altitude: 8.0,
-                 course: 305.0,
-                 speed: 0.0
+                 altitude: 8.0
                },
                device: "Yaesu VX-8",
                message: "Emergency"
@@ -437,11 +437,10 @@ defmodule AprsParserTest do
                path: [],
                symbol: "/>",
                timestamp: {expected_time(9, 23, 45), :sender_time},
+               course: %{direction: 88.0, speed: 18.519984},
                position: %{
                  latitude: {49.05833333333333, :hundredth_minute},
-                 longitude: {-72.02916666666667, :hundredth_minute},
-                 course: 88.0,
-                 speed: 18.519984
+                 longitude: {-72.02916666666667, :hundredth_minute}
                },
                object: %{
                  state: :alive,
@@ -462,11 +461,10 @@ defmodule AprsParserTest do
                path: [],
                symbol: "/>",
                timestamp: {now(), :receiver_time},
+               course: %{direction: 88.0, speed: 18.519984},
                position: %{
                  latitude: {49.05833333333333, :hundredth_minute},
-                 longitude: {-72.02916666666667, :hundredth_minute},
-                 course: 88.0,
-                 speed: 18.519984
+                 longitude: {-72.02916666666667, :hundredth_minute}
                },
                item: %{
                  state: :killed,
@@ -983,6 +981,14 @@ defmodule AprsParserTest do
                  "9W2WBP-9>P3PRT9,9M2RKK-3*,WIDE2-1,qAR,9W2UUE-2:`m>4\"P\xaa\xbd]\"43}="
                )
     end
+
+    # ---------------------------------------------------------------
+    test "Crashes, but should just be invalid" do
+      assert {:error, _reason} =
+               AprsParser.parse(
+                 "YM4KDI>APMI03,YM4KFT*,WIDE2-1,qAR,YM4KFE-10:@0\x9cL\x9a\x82\xd2\xcd647.94N/02900.25E# Batt U=12.7V.  Temp.=8.6 C"
+               )
+    end
   end
 
   describe "Tests of real packets picked up from APRS-IS which caused crashes" do
@@ -1136,13 +1142,10 @@ defmodule AprsParserTest do
                comment:
                  " Digi & IGate Jurajski W2,SPn by SQ9NFI on Linux operator SP9JKL ==> http://sq9nfi.pzk.pl",
                timestamp: {now(), :receiver_time},
+               antenna: %{power: 9.0, height: 12.192, gain: 8.0, directivity: :omnidirectional},
                position: %{
-                 directivity: :omnidirectional,
-                 gain: 8.0,
-                 height: 12.192,
                  latitude: {50.5575, :hundredth_minute},
-                 longitude: {19.450333333333333, :hundredth_minute},
-                 power: 9.0
+                 longitude: {19.450333333333333, :hundredth_minute}
                },
                symbol: "I&"
              } == expected_result
@@ -1198,11 +1201,10 @@ defmodule AprsParserTest do
                message: "Priority",
                symbol: "//",
                timestamp: {now(), :receiver_time},
+               course: %{direction: 339.0, speed: 0.0},
                position: %{
                  latitude: {47.27633333333333, :hundredth_minute},
                  longitude: {99.64833333333333, :hundredth_minute},
-                 course: 339.0,
-                 speed: 0.0,
                  altitude: 438.0
                }
              } == expected_result
@@ -1284,11 +1286,10 @@ defmodule AprsParserTest do
                device: "Original Mic-E",
                timestamp: {now(), :receiver_time},
                symbol: "/>",
+               course: %{direction: 70.0, speed: 19.034428000000002},
                position: %{
-                 course: 70.0,
                  latitude: {52.8795, :hundredth_minute},
-                 longitude: {98.3975, :hundredth_minute},
-                 speed: 19.034428000000002
+                 longitude: {98.3975, :hundredth_minute}
                }
              } == expected_result
     end
@@ -1440,12 +1441,11 @@ defmodule AprsParserTest do
                message: "Special",
                timestamp: {now(), :receiver_time},
                symbol: "/s",
+               course: %{direction: 0.0, speed: 0.0},
                position: %{
                  altitude: 4.0,
-                 course: 0.0,
                  latitude: {45.78033333333333, :hundredth_minute},
-                 longitude: {13.583833333333333, :hundredth_minute},
-                 speed: 0.0
+                 longitude: {13.583833333333333, :hundredth_minute}
                }
              } == expected_result
     end
@@ -1486,13 +1486,15 @@ defmodule AprsParserTest do
                path: ["qAR", "KA5WMY-5"],
                comment: " LaGrange, TX Digipeater - KA5WMY",
                timestamp: {now(), :receiver_time},
-               position: %{
+               antenna: %{
                  directivity: :omnidirectional,
                  gain: 7.0,
-                 height: 24.384,
+                 power: 25.0,
+                 height: 24.384
+               },
+               position: %{
                  latitude: {29.875166666666665, :hundredth_minute},
-                 longitude: {-96.89583333333333, :hundredth_minute},
-                 power: 25.0
+                 longitude: {-96.89583333333333, :hundredth_minute}
                },
                symbol: "S#"
              } == expected_result
@@ -1751,6 +1753,58 @@ defmodule AprsParserTest do
                sequence_counter: 52,
                values: [0, 0, 0, 0, 0]
              }
+           } == expected_result
+  end
+
+  # ---------------------------------------------------------------
+  test "Live test 32: Don't use String.to_charlist, use :erlang.binary_to_list" do
+    assert {:ok, expected_result} =
+             AprsParser.parse(
+               "2E1GRY-9>UQTXYS,WIDE1-1,qAR,M1DYP:`v(Ol?s</\"5/}Hello 3.92V  24.6C X|\x82r!')3%=!,|"
+             )
+
+    assert %AprsParser{
+             raw:
+               "2E1GRY-9>UQTXYS,WIDE1-1,qAR,M1DYP:`v(Ol?s</\"5/}Hello 3.92V  24.6C X|\x82r!')3%=!,|",
+             from: "2E1GRY-9",
+             to: "UQTXYS",
+             path: ["WIDE1-1", "qAR", "M1DYP"],
+             message: "Emergency",
+             comment: "Hello 3.92V  24.6C X",
+             course: %{direction: 187.0, speed: 1.543332},
+             position: %{
+               latitude: {51.8155, :hundredth_minute},
+               longitude: {-90.2085, :hundredth_minute},
+               altitude: 115.0
+             },
+             symbol: "/<",
+             telemetry: %{sequence_counter: 8908, values: [6, 746, 392, 11]},
+             timestamp: {now(), :receiver_time}
+           } == expected_result
+  end
+
+  # ---------------------------------------------------------------
+  test "Live test 33: Two : screw things up" do
+    assert {:ok, expected_result} =
+             AprsParser.parse(
+               "W7PMA-9>T3STVQ,WAREAG,WIDE1*,WIDE2-1,qAR,KK7NWN-1:`,1hl :R/'|\"R&*'9|!w`{!|3"
+             )
+
+    assert %AprsParser{
+             raw: "W7PMA-9>T3STVQ,WAREAG,WIDE1*,WIDE2-1,qAR,KK7NWN-1:`,1hl :R/'|\"R&*'9|!w`{!|3",
+             from: "W7PMA-9",
+             to: "T3STVQ",
+             path: ["WAREAG", "WIDE1*", "WIDE2-1", "qAR", "KK7NWN-1"],
+             device: "Byonics TinyTrack3",
+             message: "Special",
+             course: %{direction: 30.0, speed: 0.0},
+             position: %{
+               latitude: {43.57683333333333, :hundredth_minute},
+               longitude: {-116.36266666666667, :hundredth_minute}
+             },
+             symbol: "/R",
+             telemetry: %{sequence_counter: 140, values: [464, 570]},
+             timestamp: {now(), :receiver_time}
            } == expected_result
   end
 end
