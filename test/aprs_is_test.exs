@@ -3,7 +3,7 @@ defmodule Balloons.Utils.AprsIsTest do
   alias APRSUtils.AprsIs
   alias APRSUtils.AprsParser
 
-  @timeout 600_000
+  @tag timeout: 600_000
   test "start_link/1 starts the GenServer" do
     {:ok, pid} =
       AprsIs.start_link(
