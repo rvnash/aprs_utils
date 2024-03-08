@@ -2,6 +2,32 @@ defmodule AprsParserTest do
   use ExUnit.Case
   alias APRSUtils.AprsParser
 
+  defp now do
+    NaiveDateTime.utc_now(:second)
+  end
+
+  defp local_now do
+    now = NaiveDateTime.local_now()
+
+    NaiveDateTime.new(now.year, now.month, now.day, now.hour, now.minute, now.second, 0)
+    |> elem(1)
+  end
+
+  defp expected_time(month, day, hour, minute) do
+    now = now()
+    NaiveDateTime.new(now.year, month, day, hour, minute, 0, 0) |> elem(1)
+  end
+
+  defp expected_time(day, hour, minute) do
+    now = now()
+    NaiveDateTime.new(now.year, now.month, day, hour, minute, 0, 0) |> elem(1)
+  end
+
+  defp local_expected_time(day, hour, minute) do
+    now = local_now()
+    NaiveDateTime.new(now.year, now.month, day, hour, minute, 0, 0) |> elem(1)
+  end
+
   describe "Tests trying to get best coverage of all packet types and variants" do
     # ---------------------------------------------------------------
     test "Position w/o timestamp, no path" do
@@ -13,48 +39,34 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
+               timestamp: {now(), :receiver_time},
+               symbol: "/-",
                position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time},
                  latitude: {49.05833333333333, :hundredth_minute},
                  longitude: {-72.02916666666667, :hundredth_minute},
-                 altitude: 376.1232,
-                 symbol: "/-"
+                 altitude: 376.1232
                },
                comment: "Test /A=001234"
              } == expected_result
     end
 
     # ---------------------------------------------------------------
-    test "Position w/ timestamp, 8 path elements" do
+    test "Position w/ timestamp, 8 path elements and local time" do
       assert {:ok, expected_result} =
                AprsParser.parse(
-                 "FROMCALL>TOCALL,1,2,3,4,5,6,7,8:/092345z4903.50N/07201.75W>Test1234"
+                 "FROMCALL>TOCALL,1,2,3,4,5,6,7,8:/092345/4903.50N/07201.75W>Test1234"
                )
 
-      now = NaiveDateTime.utc_now()
-
-      expected_time =
-        NaiveDateTime.new(
-          now.year,
-          now.month,
-          String.to_integer("09"),
-          String.to_integer("23"),
-          String.to_integer("45"),
-          0,
-          0
-        )
-        |> elem(1)
-
       assert %AprsParser{
-               raw: "FROMCALL>TOCALL,1,2,3,4,5,6,7,8:/092345z4903.50N/07201.75W>Test1234",
+               raw: "FROMCALL>TOCALL,1,2,3,4,5,6,7,8:/092345/4903.50N/07201.75W>Test1234",
                from: "FROMCALL",
                to: "TOCALL",
                path: ["1", "2", "3", "4", "5", "6", "7", "8"],
+               timestamp: {local_expected_time(9, 23, 45), :sender_time},
+               symbol: "/>",
                position: %{
-                 timestamp: {expected_time, :sender_time},
                  latitude: {49.05833333333333, :hundredth_minute},
-                 longitude: {-72.02916666666667, :hundredth_minute},
-                 symbol: "/>"
+                 longitude: {-72.02916666666667, :hundredth_minute}
                },
                comment: "Test1234"
              } == expected_result
@@ -65,34 +77,19 @@ defmodule AprsParserTest do
       assert {:ok, expected_result} =
                AprsParser.parse("FROMCALL>TOCALL:/092345z4903.50N/07201.75W>123/456")
 
-      now = NaiveDateTime.utc_now()
-
-      expected_time =
-        NaiveDateTime.new(
-          now.year,
-          now.month,
-          String.to_integer("09"),
-          String.to_integer("23"),
-          String.to_integer("45"),
-          0,
-          0
-        )
-        |> elem(1)
-
       assert %AprsParser{
                raw: "FROMCALL>TOCALL:/092345z4903.50N/07201.75W>123/456",
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
+               timestamp: {expected_time(9, 23, 45), :sender_time},
+               symbol: "/>",
                position: %{
-                 timestamp: {expected_time, :sender_time},
                  latitude: {49.05833333333333, :hundredth_minute},
                  longitude: {-72.02916666666667, :hundredth_minute},
                  course: 123.0,
-                 speed: 234.586464,
-                 symbol: "/>"
-               },
-               comment: ""
+                 speed: 234.586464
+               }
              } == expected_result
     end
 
@@ -101,27 +98,14 @@ defmodule AprsParserTest do
       assert {:ok, expected_result} =
                AprsParser.parse("FROMCALL>TOCALL:/092345z4903.50N/07201.75W>088/036/270/729")
 
-      now = NaiveDateTime.utc_now()
-
-      expected_time =
-        NaiveDateTime.new(
-          now.year,
-          now.month,
-          String.to_integer("09"),
-          String.to_integer("23"),
-          String.to_integer("45"),
-          0,
-          0
-        )
-        |> elem(1)
-
       assert %AprsParser{
                raw: "FROMCALL>TOCALL:/092345z4903.50N/07201.75W>088/036/270/729",
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
+               timestamp: {expected_time(9, 23, 45), :sender_time},
+               symbol: "/>",
                position: %{
-                 timestamp: {expected_time, :sender_time},
                  latitude: {49.05833333333333, :hundredth_minute},
                  longitude: {-72.02916666666667, :hundredth_minute},
                  course: 88.0,
@@ -129,10 +113,8 @@ defmodule AprsParserTest do
                  bearing: 270.0,
                  bearing_accuracy: :less_1,
                  N: 7,
-                 range: 6437.376,
-                 symbol: "/>"
-               },
-               comment: ""
+                 range: 6437.376
+               }
              } == expected_result
     end
 
@@ -141,36 +123,21 @@ defmodule AprsParserTest do
       assert {:ok, expected_result} =
                AprsParser.parse("FROMCALL>TOCALL:/092345z4903.50N/07201.75W>PHG5132")
 
-      now = NaiveDateTime.utc_now()
-
-      expected_time =
-        NaiveDateTime.new(
-          now.year,
-          now.month,
-          String.to_integer("09"),
-          String.to_integer("23"),
-          String.to_integer("45"),
-          0,
-          0
-        )
-        |> elem(1)
-
       assert %AprsParser{
                raw: "FROMCALL>TOCALL:/092345z4903.50N/07201.75W>PHG5132",
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
+               timestamp: {expected_time(9, 23, 45), :sender_time},
+               symbol: "/>",
                position: %{
-                 timestamp: {expected_time, :sender_time},
                  latitude: {49.05833333333333, :hundredth_minute},
                  longitude: {-72.02916666666667, :hundredth_minute},
                  power: 25.0,
                  height: 6.096,
                  gain: 3.0,
-                 directivity: 90.0,
-                 symbol: "/>"
-               },
-               comment: ""
+                 directivity: 90.0
+               }
              } == expected_result
     end
 
@@ -179,33 +146,18 @@ defmodule AprsParserTest do
       assert {:ok, expected_result} =
                AprsParser.parse("FROMCALL>TOCALL:/092345z4903.50N/07201.75W>RNG0050")
 
-      now = NaiveDateTime.utc_now()
-
-      expected_time =
-        NaiveDateTime.new(
-          now.year,
-          now.month,
-          String.to_integer("09"),
-          String.to_integer("23"),
-          String.to_integer("45"),
-          0,
-          0
-        )
-        |> elem(1)
-
       assert %AprsParser{
                raw: "FROMCALL>TOCALL:/092345z4903.50N/07201.75W>RNG0050",
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
+               timestamp: {expected_time(9, 23, 45), :sender_time},
+               symbol: "/>",
                position: %{
-                 timestamp: {expected_time, :sender_time},
                  latitude: {49.05833333333333, :hundredth_minute},
                  longitude: {-72.02916666666667, :hundredth_minute},
-                 range: 80467.2,
-                 symbol: "/>"
-               },
-               comment: ""
+                 range: 80467.2
+               }
              } == expected_result
     end
 
@@ -214,36 +166,21 @@ defmodule AprsParserTest do
       assert {:ok, expected_result} =
                AprsParser.parse("FROMCALL>TOCALL:/092345z4903.50N/07201.75W>DFS2132")
 
-      now = NaiveDateTime.utc_now()
-
-      expected_time =
-        NaiveDateTime.new(
-          now.year,
-          now.month,
-          String.to_integer("09"),
-          String.to_integer("23"),
-          String.to_integer("45"),
-          0,
-          0
-        )
-        |> elem(1)
-
       assert %AprsParser{
                raw: "FROMCALL>TOCALL:/092345z4903.50N/07201.75W>DFS2132",
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
+               timestamp: {expected_time(9, 23, 45), :sender_time},
+               symbol: "/>",
                position: %{
-                 timestamp: {expected_time, :sender_time},
                  latitude: {49.05833333333333, :hundredth_minute},
                  longitude: {-72.02916666666667, :hundredth_minute},
                  strength: 2.0,
                  height: 6.096,
                  gain: 3.0,
-                 directivity: 90.0,
-                 symbol: "/>"
-               },
-               comment: ""
+                 directivity: 90.0
+               }
              } == expected_result
     end
 
@@ -257,12 +194,12 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
+               timestamp: {now(), :receiver_time},
+               symbol: "/-",
                position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time},
                  latitude: {49.166666666666664, :tenth_degree},
                  longitude: {-72.01833333333333, :tenth_minute},
-                 altitude: 376.1232,
-                 symbol: "/-"
+                 altitude: 376.1232
                },
                comment: "Test /A=001234"
              } == expected_result
@@ -275,12 +212,12 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
+               timestamp: {now(), :receiver_time},
+               symbol: "/-",
                position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time},
                  latitude: {49.0, :degree},
                  longitude: {-72.01666666666667, :minute},
-                 altitude: 376.1232,
-                 symbol: "/-"
+                 altitude: 376.1232
                },
                comment: "Test /A=001234"
              } == expected_result
@@ -299,12 +236,12 @@ defmodule AprsParserTest do
                from: "M0XER-4",
                to: "APRS64",
                path: ["TF3RPF", "WIDE2*", "qAR", "TF3SUT-2"],
+               timestamp: {now(), :receiver_time},
+               symbol: "/O",
                position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time},
                  latitude: {64.11987367625208, :hundredth_minute},
                  longitude: {-19.070654142799384, :hundredth_minute},
-                 altitude: 12450.7752,
-                 symbol: "/O"
+                 altitude: 12450.7752
                },
                telemetry: %{values: [2670, 176, 2199, 10], sequence_counter: 215},
                comment: "Xa/A=040849h"
@@ -324,14 +261,14 @@ defmodule AprsParserTest do
                from: "M0XER-4",
                to: "APRS64",
                path: ["TF3RPF", "WIDE2*", "qAR", "TF3SUT-2"],
+               timestamp: {now(), :receiver_time},
+               symbol: "/O",
                position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time},
                  latitude: {64.11987367625208, :hundredth_minute},
                  longitude: {-19.070654142799384, :hundredth_minute},
                  altitude: 12450.7752,
                  course: 88.0,
-                 speed: 18.63934126818573,
-                 symbol: "/O"
+                 speed: 18.63934126818573
                },
                telemetry: %{values: [2670, 176, 2199, 10], sequence_counter: 215},
                comment: "Xa/A=040849h"
@@ -351,13 +288,13 @@ defmodule AprsParserTest do
                from: "M0XER-4",
                to: "APRS64",
                path: ["TF3RPF", "WIDE2*", "qAR", "TF3SUT-2"],
+               timestamp: {now(), :receiver_time},
+               symbol: "/O",
                position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time},
                  latitude: {64.11987367625208, :hundredth_minute},
                  longitude: {-19.070654142799384, :hundredth_minute},
                  altitude: 12450.7752,
-                 range: 32388.552976978044,
-                 symbol: "/O"
+                 range: 32388.552976978044
                },
                telemetry: %{values: [2670, 176, 2199, 10], sequence_counter: 215},
                comment: "Xa/A=040849h"
@@ -376,12 +313,12 @@ defmodule AprsParserTest do
                from: "M0XER-4",
                to: "APRS64",
                path: ["TF3RPF", "WIDE2*", "qAR", "TF3SUT-2"],
+               timestamp: {now(), :receiver_time},
+               symbol: "/O",
                position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time},
                  latitude: {64.11987367625208, :hundredth_minute},
                  longitude: {-19.070654142799384, :hundredth_minute},
-                 altitude: 3049.3777114537656,
-                 symbol: "/O"
+                 altitude: 3049.3777114537656
                },
                telemetry: %{values: [2670, 176, 2199, 10], sequence_counter: 215},
                comment: "Xa/h"
@@ -417,19 +354,18 @@ defmodule AprsParserTest do
                from: "KB3FDA-9",
                to: "S32U6T",
                path: ["KB3FCZ-2", "WIDE1*", "WIDE2-1", "qAO", "KC3VKP-1"],
+               timestamp: {now(), :receiver_time},
+               symbol: "/>",
                position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time},
                  latitude: {33.42733333333334, :hundredth_minute},
                  longitude: {-12.129, :hundredth_minute},
                  altitude: 61.0,
                  course: 251.0,
-                 speed: 10.28888,
-                 symbol: "/>"
+                 speed: 10.28888
                },
                telemetry: %{sequence_counter: 7, values: [495, 629]},
                message: "Committed",
-               comment: "",
-               other: %{device: "Byonics TinyTrack3"}
+               device: "Byonics TinyTrack3"
              } == expected_result
     end
 
@@ -448,16 +384,16 @@ defmodule AprsParserTest do
                  "KB3FDA-9>T0RQ0V,KB3FCZ-2,WIDE1*,WIDE2-1,qAR,WA3YMM-1:`kM5nK+>/'\"6z}MT-RTG 50|!&&G'r|!w{F!|3",
                from: "KB3FDA-9",
                to: "T0RQ0V",
-               other: %{device: "Byonics TinyTrack3"},
+               device: "Byonics TinyTrack3",
                path: ["KB3FCZ-2", "WIDE1*", "WIDE2-1", "qAR", "WA3YMM-1"],
+               symbol: "/>",
+               timestamp: {now(), :receiver_time},
                position: %{
                  latitude: {40.351, :hundredth_minute},
                  longitude: {-79.82083333333334, :hundredth_minute},
                  altitude: 281.0,
                  course: 315.0,
-                 speed: 12.346656,
-                 symbol: "/>",
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time}
+                 speed: 12.346656
                },
                message: "Special",
                telemetry: %{sequence_counter: 5, values: [493, 627]},
@@ -475,18 +411,17 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "SUSUR1",
                path: [],
+               symbol: "/[",
+               timestamp: {now(), :receiver_time},
                position: %{
                  latitude: {35.58683333333333, :hundredth_minute},
                  longitude: {139.701, :hundredth_minute},
                  altitude: 8.0,
                  course: 305.0,
-                 speed: 0.0,
-                 symbol: "/[",
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time}
+                 speed: 0.0
                },
-               other: %{device: "Yaesu VX-8"},
-               message: "Emergency",
-               comment: ""
+               device: "Yaesu VX-8",
+               message: "Emergency"
              } == expected_result
     end
 
@@ -495,38 +430,23 @@ defmodule AprsParserTest do
       assert {:ok, expected_result} =
                AprsParser.parse("FROMCALL>TOCALL:;LEADER   *092345z4903.50N/07201.75W>088/036")
 
-      now = NaiveDateTime.utc_now()
-
-      expected_time =
-        NaiveDateTime.new(
-          now.year,
-          now.month,
-          String.to_integer("09"),
-          String.to_integer("23"),
-          String.to_integer("45"),
-          0,
-          0
-        )
-        |> elem(1)
-
       assert %AprsParser{
                raw: "FROMCALL>TOCALL:;LEADER   *092345z4903.50N/07201.75W>088/036",
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
+               symbol: "/>",
+               timestamp: {expected_time(9, 23, 45), :sender_time},
                position: %{
                  latitude: {49.05833333333333, :hundredth_minute},
                  longitude: {-72.02916666666667, :hundredth_minute},
                  course: 88.0,
-                 speed: 18.519984,
-                 symbol: "/>",
-                 timestamp: {expected_time, :sender_time}
+                 speed: 18.519984
                },
                object: %{
                  state: :alive,
                  name: "LEADER   "
-               },
-               comment: ""
+               }
              } == expected_result
     end
 
@@ -540,19 +460,18 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
+               symbol: "/>",
+               timestamp: {now(), :receiver_time},
                position: %{
                  latitude: {49.05833333333333, :hundredth_minute},
                  longitude: {-72.02916666666667, :hundredth_minute},
                  course: 88.0,
-                 speed: 18.519984,
-                 symbol: "/>",
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time}
+                 speed: 18.519984
                },
                item: %{
                  state: :killed,
                  name: "ITEM"
-               },
-               comment: ""
+               }
              } == expected_result
     end
 
@@ -566,9 +485,7 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time}
-               },
+               timestamp: {now(), :receiver_time},
                status: "status text"
              } == expected_result
     end
@@ -583,10 +500,10 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
+               timestamp: {now(), :receiver_time},
+               symbol: "/-",
                position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time},
-                 maidenhead: "IO91SX",
-                 symbol: "/-"
+                 maidenhead: "IO91SX"
                },
                status: "status text"
              } == expected_result
@@ -597,28 +514,12 @@ defmodule AprsParserTest do
       assert {:ok, expected_result} =
                AprsParser.parse("FROMCALL>TOCALL:>092345zstatus text")
 
-      now = NaiveDateTime.utc_now()
-
-      expected_time =
-        NaiveDateTime.new(
-          now.year,
-          now.month,
-          String.to_integer("09"),
-          String.to_integer("23"),
-          String.to_integer("45"),
-          0,
-          0
-        )
-        |> elem(1)
-
       assert %AprsParser{
                raw: "FROMCALL>TOCALL:>092345zstatus text",
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               position: %{
-                 timestamp: {expected_time, :sender_time}
-               },
+               timestamp: {expected_time(9, 23, 45), :sender_time},
                status: "status text"
              } == expected_result
     end
@@ -633,9 +534,7 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time}
-               },
+               timestamp: {now(), :receiver_time},
                message: %{
                  addressee: "ADDRCALL ",
                  message: "message text"
@@ -653,9 +552,7 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time}
-               },
+               timestamp: {now(), :receiver_time},
                message: %{
                  addressee: "ADDRCALL ",
                  message: "message text",
@@ -674,9 +571,7 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time}
-               },
+               timestamp: {now(), :receiver_time},
                message: %{
                  addressee: "ADDRCALL ",
                  message: "ack",
@@ -695,9 +590,7 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time}
-               },
+               timestamp: {now(), :receiver_time},
                message: %{
                  addressee: "ADDRCALL ",
                  message: "rej",
@@ -723,13 +616,12 @@ defmodule AprsParserTest do
                from: "KC3ARY",
                to: "APDW16",
                path: ["TCPIP*", "qAC", "T2TEXAS"],
+               symbol: "I#",
+               timestamp: {now(), :receiver_time},
                position: %{
                  latitude: {40.54216566997265, :hundredth_minute},
-                 longitude: {-79.95600195313526, :hundredth_minute},
-                 symbol: "I#",
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time}
+                 longitude: {-79.95600195313526, :hundredth_minute}
                },
-               comment: "",
                telemetry: %{
                  sequence_counter: 1023,
                  values: [1263, 4376, 3842, 18, 4097]
@@ -750,9 +642,7 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time}
-               },
+               timestamp: {now(), :receiver_time},
                telemetry: %{
                  to: "FROMCALL",
                  unit: [
@@ -784,9 +674,7 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time}
-               },
+               timestamp: {now(), :receiver_time},
                telemetry: %{
                  to: "FROMCALL",
                  bits: [1, 1, 0, 0, 1, 0, 1, 0],
@@ -808,9 +696,7 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time}
-               },
+               timestamp: {now(), :receiver_time},
                telemetry: %{
                  to: "FROMCALL",
                  parm: [
@@ -844,9 +730,7 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time}
-               },
+               timestamp: {now(), :receiver_time},
                telemetry: %{
                  to: "FROMCALL",
                  eqns: [
@@ -870,9 +754,7 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time}
-               },
+               timestamp: {now(), :receiver_time},
                telemetry: %{
                  values: [456, 789, 12, 345, 678],
                  bits: [1, 0, 1, 0, 1, 1, 0, 0],
@@ -892,9 +774,7 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time}
-               },
+               timestamp: {now(), :receiver_time},
                telemetry: %{
                  values: [456, 789, 12, 345, 678],
                  bits: [1, 0, 1, 0, 1, 1, 0, 0]
@@ -913,9 +793,7 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time}
-               },
+               timestamp: {now(), :receiver_time},
                telemetry: %{
                  values: [456, 789, 12, 345, 678],
                  bits: [1, 0, 1, 0, 1, 1, 0, 0]
@@ -940,31 +818,17 @@ defmodule AprsParserTest do
                  "DW4636>APRS,TCPXX*,qAX,CWOP-5:@031215z4035.94N/07954.84W_168/000g...t044r...p...P000h94b10205L009.DsIP"
                )
 
-      now = NaiveDateTime.utc_now()
-
-      expected_time =
-        NaiveDateTime.new(
-          now.year,
-          now.month,
-          String.to_integer("03"),
-          String.to_integer("12"),
-          String.to_integer("15"),
-          0,
-          0
-        )
-        |> elem(1)
-
       assert %AprsParser{
                raw:
                  "DW4636>APRS,TCPXX*,qAX,CWOP-5:@031215z4035.94N/07954.84W_168/000g...t044r...p...P000h94b10205L009.DsIP",
                from: "DW4636",
                to: "APRS",
                path: ["TCPXX*", "qAX", "CWOP-5"],
+               timestamp: {expected_time(3, 12, 15), :sender_time},
+               symbol: "/_",
                position: %{
                  latitude: {40.599, :hundredth_minute},
-                 longitude: {-79.914, :hundredth_minute},
-                 timestamp: {expected_time, :sender_time},
-                 symbol: "/_"
+                 longitude: {-79.914, :hundredth_minute}
                },
                weather: %{
                  wind_direction: 168.0,
@@ -976,8 +840,7 @@ defmodule AprsParserTest do
                  luminosity: 9.0,
                  software_type: "Unknown '.'",
                  wx_unit: "Unknown 'DsIP'"
-               },
-               comment: ""
+               }
              } == expected_result
     end
 
@@ -993,11 +856,11 @@ defmodule AprsParserTest do
                from: "DW4636",
                to: "APRS",
                path: ["TCPXX*", "qAX", "CWOP-5"],
+               timestamp: {now(), :receiver_time},
+               symbol: "/_",
                position: %{
                  latitude: {39.1743251970199, :hundredth_minute},
-                 longitude: {-96.63086268724109, :hundredth_minute},
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time},
-                 symbol: "/_"
+                 longitude: {-96.63086268724109, :hundredth_minute}
                },
                weather: %{
                  wind_direction: 68.0,
@@ -1006,8 +869,7 @@ defmodule AprsParserTest do
                  humidity: 46.0,
                  barometric_pressure: 1032.2,
                  rainfall_since_midnight: 0.0
-               },
-               comment: ""
+               }
              } == expected_result
     end
   end
@@ -1137,10 +999,9 @@ defmodule AprsParserTest do
                from: "EA5JMY-13",
                to: "APRS",
                path: ["TCPIP*", "qAC", "T2UKRAINE"],
-               comment: "",
+               timestamp: {now(), :receiver_time},
+               symbol: "/_",
                position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time},
-                 symbol: "/_",
                  latitude: {39.492, :hundredth_minute},
                  longitude: {-0.374, :hundredth_minute}
                },
@@ -1154,20 +1015,6 @@ defmodule AprsParserTest do
 
     # ---------------------------------------------------------------
     test "Live test crash 2: Unknown time indicator" do
-      now = NaiveDateTime.utc_now()
-
-      expected_time =
-        NaiveDateTime.new(
-          now.year,
-          now.month,
-          String.to_integer("05"),
-          String.to_integer("01"),
-          String.to_integer("13"),
-          0,
-          0
-        )
-        |> elem(1)
-
       assert {:ok, expected_result} =
                AprsParser.parse(
                  "KE5JJC-10>APMI06,TUNKMT*,WIDE2-1,qAO,N7JCT-3:@050113#4849.53N/11839.03W-StorybookMtRanch,T=??.?F"
@@ -1180,9 +1027,9 @@ defmodule AprsParserTest do
                to: "APMI06",
                path: ["TUNKMT*", "WIDE2-1", "qAO", "N7JCT-3"],
                comment: "StorybookMtRanch,T=??.?F",
+               timestamp: {expected_time(5, 1, 13), :sender_time},
+               symbol: "/-",
                position: %{
-                 timestamp: {expected_time, :sender_time},
-                 symbol: "/-",
                  latitude: {48.8255, :hundredth_minute},
                  longitude: {-118.6505, :hundredth_minute}
                }
@@ -1191,20 +1038,6 @@ defmodule AprsParserTest do
 
     # ---------------------------------------------------------------
     test "Live test crash 3: Not a hurricane after /" do
-      now = NaiveDateTime.utc_now()
-
-      expected_time =
-        NaiveDateTime.new(
-          now.year,
-          now.month,
-          String.to_integer("05"),
-          String.to_integer("01"),
-          String.to_integer("42"),
-          0,
-          0
-        )
-        |> elem(1)
-
       assert {:ok, expected_result} =
                AprsParser.parse(
                  "EA1GGY-1>APU25N,TCPIP*,qAS,EA1GGY:@050142z4250.99N/00618.85W_236/003g010t040r001p014P001h99b10022/ {UIV32N}"
@@ -1217,11 +1050,11 @@ defmodule AprsParserTest do
                to: "APU25N",
                path: ["TCPIP*", "qAS", "EA1GGY"],
                comment: "/ {UIV32N}",
+               symbol: "/_",
+               timestamp: {expected_time(5, 1, 42), :sender_time},
                position: %{
                  latitude: {42.849833333333336, :hundredth_minute},
-                 longitude: {-6.314166666666667, :hundredth_minute},
-                 symbol: "/_",
-                 timestamp: {expected_time, :sender_time}
+                 longitude: {-6.314166666666667, :hundredth_minute}
                },
                weather: %{
                  wind_speed: 3.0,
@@ -1239,20 +1072,6 @@ defmodule AprsParserTest do
 
     # ---------------------------------------------------------------
     test "Live test crash 4: barometric pressure problem" do
-      now = NaiveDateTime.utc_now()
-
-      expected_time =
-        NaiveDateTime.new(
-          now.year,
-          now.month,
-          String.to_integer("05"),
-          String.to_integer("01"),
-          String.to_integer("51"),
-          0,
-          0
-        )
-        |> elem(1)
-
       assert {:ok, expected_result} =
                AprsParser.parse(
                  "VK3ARH-13>APRS,TCPIP*,qAS,VK3ARH:@050151z/aRhPrr5u_j/Cg007t080h22b9640"
@@ -1263,13 +1082,12 @@ defmodule AprsParserTest do
                from: "VK3ARH-13",
                to: "APRS",
                path: ["TCPIP*", "qAS", "VK3ARH"],
+               symbol: "/_",
+               timestamp: {expected_time(5, 1, 51), :sender_time},
                position: %{
                  latitude: {-37.69099772659257, :hundredth_minute},
-                 longitude: {144.00999669227093, :hundredth_minute},
-                 symbol: "/_",
-                 timestamp: {expected_time, :sender_time}
+                 longitude: {144.00999669227093, :hundredth_minute}
                },
-               comment: "",
                weather: %{
                  barometric_pressure: 964.0,
                  gust_speed: 3.12928,
@@ -1293,8 +1111,7 @@ defmodule AprsParserTest do
                from: "NS8C-6",
                to: "APRX29",
                path: ["TCPIP*", "qAS", "NS8C-1"],
-               position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}},
-               comment: "",
+               timestamp: {now(), :receiver_time},
                telemetry: %{
                  values: [0, 0, 0, 0, 0],
                  bits: [0, 0, 0, 0, 0, 0, 0, 0],
@@ -1318,16 +1135,16 @@ defmodule AprsParserTest do
                path: ["TCPIP*", "qAC", "T2RADOM"],
                comment:
                  " Digi & IGate Jurajski W2,SPn by SQ9NFI on Linux operator SP9JKL ==> http://sq9nfi.pzk.pl",
+               timestamp: {now(), :receiver_time},
                position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time},
                  directivity: :omnidirectional,
                  gain: 8.0,
                  height: 12.192,
                  latitude: {50.5575, :hundredth_minute},
                  longitude: {19.450333333333333, :hundredth_minute},
-                 power: 9.0,
-                 symbol: "I&"
-               }
+                 power: 9.0
+               },
+               symbol: "I&"
              } == expected_result
     end
 
@@ -1345,11 +1162,11 @@ defmodule AprsParserTest do
                to: "APE4S1",
                path: ["WIDE1-1", "WIDE2-1", "qAR", "S52SX"],
                comment: "PIC  WS-2300 Medvode",
+               symbol: "/_",
+               timestamp: {now(), :receiver_time},
                position: %{
                  latitude: {46.14483333333333, :hundredth_minute},
-                 longitude: {14.429333333333334, :hundredth_minute},
-                 symbol: "/_",
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time}
+                 longitude: {14.429333333333334, :hundredth_minute}
                },
                weather: %{
                  wind_direction: 248.0,
@@ -1379,11 +1196,11 @@ defmodule AprsParserTest do
                path: ["WIDE1-1", "WIDE2-1", "qAR", "OE9IMJ-10"],
                comment: "mou CT3863 S6 11.3C  959hPa 3.4V",
                message: "Priority",
+               symbol: "//",
+               timestamp: {now(), :receiver_time},
                position: %{
                  latitude: {47.27633333333333, :hundredth_minute},
                  longitude: {99.64833333333333, :hundredth_minute},
-                 symbol: "//",
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time},
                  course: 339.0,
                  speed: 0.0,
                  altitude: 438.0
@@ -1408,7 +1225,7 @@ defmodule AprsParserTest do
                  message: "K SOTA SKYWARN SATELLITE BALLOONS WX WEATHER{DQ}",
                  addressee: "ANSRVR   "
                },
-               position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}}
+               timestamp: {now(), :receiver_time}
              } == expected_result
     end
 
@@ -1424,7 +1241,7 @@ defmodule AprsParserTest do
                from: "XE2MBE-10",
                to: "APMI01",
                path: ["TCPIP*", "qAS", "XE2MBE"],
-               position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}},
+               timestamp: {now(), :receiver_time},
                telemetry: %{
                  to: "XE2MBE-10",
                  eqns: [
@@ -1449,7 +1266,7 @@ defmodule AprsParserTest do
                to: "APRS",
                path: ["qAS", "OE7XGR-10"],
                message: %{message: "rej", addressee: "SHVFLS   ", message_no: "J00AA"},
-               position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}}
+               timestamp: {now(), :receiver_time}
              } == expected_result
     end
 
@@ -1463,16 +1280,15 @@ defmodule AprsParserTest do
                from: "DL9OBG-9",
                to: "UR5RW7",
                path: ["WIDE1-1", "WIDE2-2", "qAU", "DL9OBG-11"],
-               comment: "",
                message: "Priority",
-               other: %{device: "Original Mic-E"},
+               device: "Original Mic-E",
+               timestamp: {now(), :receiver_time},
+               symbol: "/>",
                position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time},
                  course: 70.0,
                  latitude: {52.8795, :hundredth_minute},
                  longitude: {98.3975, :hundredth_minute},
-                 speed: 19.034428000000002,
-                 symbol: "/>"
+                 speed: 19.034428000000002
                }
              } == expected_result
     end
@@ -1484,20 +1300,6 @@ defmodule AprsParserTest do
                  "LX1CU-13>APMI06,TCPIP*,qAC,T2GYOR:@051739a4948.24ND00559.92E-WX3in1Plus2.0 U=12.1V,T=28.3C"
                )
 
-      now = NaiveDateTime.utc_now()
-
-      expected_time =
-        NaiveDateTime.new(
-          now.year,
-          now.month,
-          String.to_integer("05"),
-          String.to_integer("17"),
-          String.to_integer("39"),
-          0,
-          0
-        )
-        |> elem(1)
-
       assert %AprsParser{
                raw:
                  "LX1CU-13>APMI06,TCPIP*,qAC,T2GYOR:@051739a4948.24ND00559.92E-WX3in1Plus2.0 U=12.1V,T=28.3C",
@@ -1505,11 +1307,11 @@ defmodule AprsParserTest do
                to: "APMI06",
                path: ["TCPIP*", "qAC", "T2GYOR"],
                comment: "WX3in1Plus2.0 U=12.1V,T=28.3C",
+               symbol: "D-",
+               timestamp: {expected_time(5, 17, 39), :sender_time},
                position: %{
                  latitude: {49.804, :hundredth_minute},
-                 longitude: {5.998666666666667, :hundredth_minute},
-                 symbol: "D-",
-                 timestamp: {expected_time, :sender_time}
+                 longitude: {5.998666666666667, :hundredth_minute}
                }
              } == expected_result
     end
@@ -1527,7 +1329,7 @@ defmodule AprsParserTest do
                from: "KX4O-13",
                to: "APMI06",
                path: ["TCPIP*", "qAS", "KX4O"],
-               position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}},
+               timestamp: {now(), :receiver_time},
                telemetry: %{
                  to: "KX4O-13",
                  eqns: [
@@ -1554,7 +1356,7 @@ defmodule AprsParserTest do
                from: "DO7BTR-10",
                to: "APLC13",
                path: ["qAS", "DO9FK-3"],
-               position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}},
+               timestamp: {now(), :receiver_time},
                telemetry: %{
                  eqns: [[0.0, 0.1, 0.0], [0.0, 0.1, 0.0], [0.0, 0.1, 0.0]],
                  to: "DO7BTR-10"
@@ -1574,8 +1376,7 @@ defmodule AprsParserTest do
                from: "AG1T-20",
                to: "APRS",
                path: ["TCPIP*", "qAC", "SIXTH"],
-               comment: "",
-               position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}},
+               timestamp: {now(), :receiver_time},
                telemetry: %{
                  bits: [0, 1, 1, 0, 0, 0, 0, 0],
                  sequence_counter: 336,
@@ -1596,7 +1397,7 @@ defmodule AprsParserTest do
                from: "SP2PMK",
                to: "APN100",
                path: ["TCPIP*", "qAC", "T2POLAND"],
-               position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}},
+               timestamp: {now(), :receiver_time},
                status: "Zapraszamy w każdy poniedziałek o 18:00 "
              } == expected_result
     end
@@ -1615,7 +1416,7 @@ defmodule AprsParserTest do
                to: "RXTLM-1",
                path: ["TCPIP", "qAR", "IK8TGH"],
                comment: "ORP_SimplexLogic_Port1",
-               position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}},
+               timestamp: {now(), :receiver_time},
                telemetry: %{
                  values: [1.5, 0.0, 0, 1, 0.0],
                  bits: [0, 0, 0, 0, 0, 0, 0, 0],
@@ -1632,20 +1433,19 @@ defmodule AprsParserTest do
                )
 
       assert %AprsParser{
-               comment: "",
                raw: "IW3SRV-5>T5TV82,S53UAN-10*,WIDE1*,WIDE2-1,qAR,S58W-10:`)?\x1Fl \x1Cs/>\"3v}",
                from: "IW3SRV-5",
                to: "T5TV82",
                path: ["S53UAN-10*", "WIDE1*", "WIDE2-1", "qAR", "S58W-10"],
                message: "Special",
+               timestamp: {now(), :receiver_time},
+               symbol: "/s",
                position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time},
                  altitude: 4.0,
                  course: 0.0,
                  latitude: {45.78033333333333, :hundredth_minute},
                  longitude: {13.583833333333333, :hundredth_minute},
-                 speed: 0.0,
-                 symbol: "/s"
+                 speed: 0.0
                }
              } == expected_result
     end
@@ -1662,8 +1462,7 @@ defmodule AprsParserTest do
                from: "IR1UFB",
                to: "APMI06",
                path: ["TCPIP*", "qAC", "T2CSNGRAD"],
-               comment: "",
-               position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}},
+               timestamp: {now(), :receiver_time},
                telemetry: %{
                  values: [233, 130, 17, 154, 81],
                  bits: [0, 0, 0, 0, 0, 0, 0, 0],
@@ -1686,16 +1485,16 @@ defmodule AprsParserTest do
                to: "APN391",
                path: ["qAR", "KA5WMY-5"],
                comment: " LaGrange, TX Digipeater - KA5WMY",
+               timestamp: {now(), :receiver_time},
                position: %{
-                 timestamp: {NaiveDateTime.local_now(), :receiver_time},
                  directivity: :omnidirectional,
                  gain: 7.0,
                  height: 24.384,
                  latitude: {29.875166666666665, :hundredth_minute},
                  longitude: {-96.89583333333333, :hundredth_minute},
-                 power: 25.0,
-                 symbol: "S#"
-               }
+                 power: 25.0
+               },
+               symbol: "S#"
              } == expected_result
     end
 
@@ -1706,30 +1505,13 @@ defmodule AprsParserTest do
                  "KB2TSV>APW280,WIDE2-1,qAR,W3ZO-10:_03062214c000s255g255t076r000p000P000h00b00000wDVP"
                )
 
-      now = NaiveDateTime.utc_now()
-
-      expected_time =
-        NaiveDateTime.new(
-          now.year,
-          String.to_integer("03"),
-          String.to_integer("06"),
-          String.to_integer("22"),
-          String.to_integer("14"),
-          0,
-          0
-        )
-        |> elem(1)
-
       assert %AprsParser{
                raw:
                  "KB2TSV>APW280,WIDE2-1,qAR,W3ZO-10:_03062214c000s255g255t076r000p000P000h00b00000wDVP",
                from: "KB2TSV",
                to: "APW280",
                path: ["WIDE2-1", "qAR", "W3ZO-10"],
-               comment: "",
-               position: %{
-                 timestamp: {expected_time, :sender_time}
-               },
+               timestamp: {expected_time(3, 6, 22, 14), :sender_time},
                weather: %{
                  wind_speed: 113.9952,
                  wind_direction: 0.0,
@@ -1759,7 +1541,7 @@ defmodule AprsParserTest do
                from: "NE4SC-12",
                to: "APRS",
                path: ["WIDE2-2", "qAR", "KW4BET-3"],
-               position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}},
+               timestamp: {now(), :receiver_time},
                raw_gps: "ULTW0000000000FD00002805000E8938000103710165045B00000000"
              } == expected_result
     end
@@ -1779,7 +1561,7 @@ defmodule AprsParserTest do
              to: "APRS",
              path: ["TCPIP*", "qAC", "T2CS"],
              comment: "Solar Power WX Station",
-             position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}},
+             timestamp: {now(), :receiver_time},
              telemetry: %{
                values: [250, 55, 0, 45],
                bits: [1, 1, 1, 0],
@@ -1801,10 +1583,9 @@ defmodule AprsParserTest do
              from: "DB0BIN",
              to: "APGE01",
              path: ["TCPIP*", "qAC", "T2CSNGRAD"],
-             comment: "",
+             timestamp: {now(), :receiver_time},
+             symbol: "/_",
              position: %{
-               timestamp: {NaiveDateTime.local_now(), :receiver_time},
-               symbol: "/_",
                latitude: {48.3045, :hundredth_minute},
                longitude: {8.7615, :hundredth_minute}
              },
@@ -1832,10 +1613,9 @@ defmodule AprsParserTest do
              to: "APRSWX",
              from: "OK1IRG-6",
              path: ["TCPIP*", "qAC", "T2CZECH"],
-             comment: "",
+             timestamp: {now(), :receiver_time},
+             symbol: "/_",
              position: %{
-               timestamp: {NaiveDateTime.local_now(), :receiver_time},
-               symbol: "/_",
                latitude: {50.37883333333333, :hundredth_minute},
                longitude: {13.764666666666667, :hundredth_minute}
              },
@@ -1865,9 +1645,9 @@ defmodule AprsParserTest do
              to: "APRS",
              path: ["TCPIP*", "qAC", "T2LAUSITZ"],
              comment: "APRSuWX 0.1.7h | Malaysia microWX Node  AC-powered: 5.00 volts",
+             timestamp: {now(), :receiver_time},
+             symbol: "/_",
              position: %{
-               timestamp: {NaiveDateTime.local_now(), :receiver_time},
-               symbol: "/_",
                latitude: {1.654, :hundredth_minute},
                longitude: {110.20166666666667, :hundredth_minute}
              },
@@ -1890,20 +1670,6 @@ defmodule AprsParserTest do
                "HB9SZU-6>APYSNR,TCPIP*,qAS,HB9SZU:@071558z4611.51N/00901.48E_.../...g...t056r000P000b10182h52Node-RED WX Station Bellinzona"
              )
 
-    now = NaiveDateTime.utc_now()
-
-    expected_time =
-      NaiveDateTime.new(
-        now.year,
-        now.month,
-        String.to_integer("07"),
-        String.to_integer("15"),
-        String.to_integer("58"),
-        0,
-        0
-      )
-      |> elem(1)
-
     assert %AprsParser{
              comment: "Node-RED WX Station Bellinzona",
              raw:
@@ -1911,9 +1677,9 @@ defmodule AprsParserTest do
              from: "HB9SZU-6",
              to: "APYSNR",
              path: ["TCPIP*", "qAS", "HB9SZU"],
+             timestamp: {expected_time(7, 15, 58), :sender_time},
+             symbol: "/_",
              position: %{
-               timestamp: {expected_time, :sender_time},
-               symbol: "/_",
                latitude: {46.191833333333335, :hundredth_minute},
                longitude: {9.024666666666667, :hundredth_minute}
              },
@@ -1934,20 +1700,6 @@ defmodule AprsParserTest do
                "KB2TSV>APW280,WIDE2-1,qAR,W3ZO-10:_03062214c000s255g255t3276r000p000P000h00b00000wDVP"
              )
 
-    now = NaiveDateTime.utc_now()
-
-    expected_time =
-      NaiveDateTime.new(
-        now.year,
-        String.to_integer("03"),
-        String.to_integer("06"),
-        String.to_integer("22"),
-        String.to_integer("14"),
-        0,
-        0
-      )
-      |> elem(1)
-
     assert %AprsParser{
              raw:
                "KB2TSV>APW280,WIDE2-1,qAR,W3ZO-10:_03062214c000s255g255t3276r000p000P000h00b00000wDVP",
@@ -1955,7 +1707,7 @@ defmodule AprsParserTest do
              to: "APW280",
              path: ["WIDE2-1", "qAR", "W3ZO-10"],
              comment: "6r000p000P000h00b00000wDVP",
-             position: %{timestamp: {expected_time, :sender_time}},
+             timestamp: {expected_time(3, 6, 22, 14), :sender_time},
              weather: %{
                temperature: 163.88888888888889,
                gust_speed: 113.9952,
@@ -1978,8 +1730,27 @@ defmodule AprsParserTest do
              from: "IZ1DNG-10",
              to: "WIDE1-1",
              path: ["WIDE2-2", "qAR", "IR1UFB"],
-             position: %{timestamp: {NaiveDateTime.local_now(), :receiver_time}},
+             timestamp: {now(), :receiver_time},
              telemetry: %{bits: [1], sequence_counter: 55, values: [184, 130, 165, 126]}
+           } == expected_result
+  end
+
+  # ---------------------------------------------------------------
+  test "Live test 31: Telemetry issue to take care of" do
+    assert {:ok, expected_result} =
+             AprsParser.parse("DK9CL-10>APZES,TCPIP*,qAC,T2PERTH:T#52,0,0,0,0,0,00000000")
+
+    assert %AprsParser{
+             raw: "DK9CL-10>APZES,TCPIP*,qAC,T2PERTH:T#52,0,0,0,0,0,00000000",
+             from: "DK9CL-10",
+             to: "APZES",
+             path: ["TCPIP*", "qAC", "T2PERTH"],
+             timestamp: {now(), :receiver_time},
+             telemetry: %{
+               bits: [0, 0, 0, 0, 0, 0, 0, 0],
+               sequence_counter: 52,
+               values: [0, 0, 0, 0, 0]
+             }
            } == expected_result
   end
 end
