@@ -989,6 +989,18 @@ defmodule AprsParserTest do
                  "YM4KDI>APMI03,YM4KFT*,WIDE2-1,qAR,YM4KFE-10:@0\x9cL\x9a\x82\xd2\xcd647.94N/02900.25E# Batt U=12.7V.  Temp.=8.6 C"
                )
     end
+
+    # ---------------------------------------------------------------
+    test "Too short Mic-e TO field" do
+      assert {:error, _reason} =
+               AprsParser.parse("WB5LIV>K5PEW,WIDE1*,WIDE2-1,qAo,N5UKZ:`vTom6F>/`\"4\"}_%")
+    end
+
+    # ---------------------------------------------------------------
+    test "Too long Mic-e TO field" do
+      assert {:error, _reason} =
+               AprsParser.parse("WB5LIV>K5PEWWW,WIDE1*,WIDE2-1,qAo,N5UKZ:`vTom6F>/`\"4\"}_%")
+    end
   end
 
   describe "Tests of real packets picked up from APRS-IS which caused crashes" do
@@ -1804,6 +1816,62 @@ defmodule AprsParserTest do
              },
              symbol: "/R",
              telemetry: %{sequence_counter: 140, values: [464, 570]},
+             timestamp: {now(), :receiver_time}
+           } == expected_result
+  end
+
+  # ---------------------------------------------------------------
+  test "Live test 34: aprs.fi parses this" do
+    assert {:ok, expected_result} =
+             AprsParser.parse(
+               "VK6HGR-1>APRS,TCPIP*,qAC,T2SYDNEY::VK6HGR-1 :EQNS.0,1,0,0,1,0,0,1,0,,,,,a"
+             )
+
+    assert %AprsParser{
+             raw: "VK6HGR-1>APRS,TCPIP*,qAC,T2SYDNEY::VK6HGR-1 :EQNS.0,1,0,0,1,0,0,1,0,,,,,a",
+             from: "VK6HGR-1",
+             to: "APRS",
+             path: ["TCPIP*", "qAC", "T2SYDNEY"],
+             telemetry: %{
+               eqns: [[0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.0]],
+               to: "VK6HGR-1"
+             },
+             timestamp: {now(), :receiver_time}
+           } == expected_result
+  end
+
+  # ---------------------------------------------------------------
+  test "Live test 35: Really long addresses paths. aprs.fi seems to have no limit, spec says 0 .. 8" do
+    assert {:ok, expected_result} =
+             AprsParser.parse(
+               "OV5BBS>U5RU27,OZ9DIE-2,WIDE1,OV7B-1,OZ6HR-2,OZ7CER-1,WIDE1*,QAR,OZ4DIC-2,qAR,OZ7GZ:`&5al <0x1c>n\>PACKET BBS I ODENSE"
+             )
+
+    assert %AprsParser{
+             raw:
+               "OV5BBS>U5RU27,OZ9DIE-2,WIDE1,OV7B-1,OZ6HR-2,OZ7CER-1,WIDE1*,QAR,OZ4DIC-2,qAR,OZ7GZ:`&5al <0x1c>n>PACKET BBS I ODENSE",
+             from: "OV5BBS",
+             to: "U5RU27",
+             path: [
+               "OZ9DIE-2",
+               "WIDE1",
+               "OV7B-1",
+               "OZ6HR-2",
+               "OZ7CER-1",
+               "WIDE1*",
+               "QAR",
+               "OZ4DIC-2",
+               "qAR",
+               "OZ7GZ"
+             ],
+             message: "Special",
+             comment: "1c>n>PACKET BBS I ODENSE",
+             course: %{speed: 0.0, direction: 32.0},
+             position: %{
+               latitude: {55.421166666666664, :hundredth_minute},
+               longitude: {10.428166666666666, :hundredth_minute}
+             },
+             symbol: "x0",
              timestamp: {now(), :receiver_time}
            } == expected_result
   end
