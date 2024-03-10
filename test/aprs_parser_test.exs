@@ -2,32 +2,6 @@ defmodule AprsParserTest do
   use ExUnit.Case
   alias APRSUtils.AprsParser
 
-  defp now do
-    NaiveDateTime.utc_now(:second)
-  end
-
-  defp local_now do
-    now = NaiveDateTime.local_now()
-
-    NaiveDateTime.new(now.year, now.month, now.day, now.hour, now.minute, now.second, 0)
-    |> elem(1)
-  end
-
-  defp expected_time(month, day, hour, minute) do
-    now = now()
-    NaiveDateTime.new(now.year, month, day, hour, minute, 0, 0) |> elem(1)
-  end
-
-  defp expected_time(day, hour, minute) do
-    now = now()
-    NaiveDateTime.new(now.year, now.month, day, hour, minute, 0, 0) |> elem(1)
-  end
-
-  defp local_expected_time(day, hour, minute) do
-    now = local_now()
-    NaiveDateTime.new(now.year, now.month, day, hour, minute, 0, 0) |> elem(1)
-  end
-
   describe "Tests trying to get best coverage of all packet types and variants" do
     # ---------------------------------------------------------------
     test "Position w/o timestamp, no path" do
@@ -39,7 +13,6 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {now(), :receiver_time},
                symbol: "/-",
                position: %{
                  latitude: {49.05833333333333, :hundredth_minute},
@@ -62,7 +35,7 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: ["1", "2", "3", "4", "5", "6", "7", "8"],
-               timestamp: {local_expected_time(9, 23, 45), :sender_time},
+               timestamp: %{day: 9, hour: 23, minute: 45, time_zone: :local_to_sender},
                symbol: "/>",
                position: %{
                  latitude: {49.05833333333333, :hundredth_minute},
@@ -82,7 +55,7 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {expected_time(9, 23, 45), :sender_time},
+               timestamp: %{day: 9, hour: 23, minute: 45, time_zone: :utc},
                symbol: "/>",
                course: %{
                  direction: 123.0,
@@ -105,7 +78,7 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {expected_time(9, 23, 45), :sender_time},
+               timestamp: %{day: 9, hour: 23, minute: 45, time_zone: :utc},
                symbol: "/>",
                course: %{
                  direction: 88.0,
@@ -132,7 +105,7 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {expected_time(9, 23, 45), :sender_time},
+               timestamp: %{day: 9, hour: 23, minute: 45, time_zone: :utc},
                symbol: "/>",
                antenna: %{power: 25.0, height: 6.096, gain: 3.0, directivity: 90.0},
                position: %{
@@ -152,7 +125,7 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {expected_time(9, 23, 45), :sender_time},
+               timestamp: %{day: 9, hour: 23, minute: 45, time_zone: :utc},
                symbol: "/>",
                antenna: %{range: 80467.2},
                position: %{
@@ -172,7 +145,7 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {expected_time(9, 23, 45), :sender_time},
+               timestamp: %{day: 9, hour: 23, minute: 45, time_zone: :utc},
                symbol: "/>",
                antenna: %{strength: 2.0, height: 6.096, gain: 3.0, directivity: 90.0},
                position: %{
@@ -192,7 +165,6 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {now(), :receiver_time},
                symbol: "/-",
                position: %{
                  latitude: {49.166666666666664, :tenth_degree},
@@ -210,7 +182,6 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {now(), :receiver_time},
                symbol: "/-",
                position: %{
                  latitude: {49.0, :degree},
@@ -234,7 +205,6 @@ defmodule AprsParserTest do
                from: "M0XER-4",
                to: "APRS64",
                path: ["TF3RPF", "WIDE2*", "qAR", "TF3SUT-2"],
-               timestamp: {now(), :receiver_time},
                symbol: "/O",
                position: %{
                  latitude: {64.11987367625208, :hundredth_minute},
@@ -259,7 +229,6 @@ defmodule AprsParserTest do
                from: "M0XER-4",
                to: "APRS64",
                path: ["TF3RPF", "WIDE2*", "qAR", "TF3SUT-2"],
-               timestamp: {now(), :receiver_time},
                symbol: "/O",
                course: %{
                  direction: 88.0,
@@ -288,7 +257,6 @@ defmodule AprsParserTest do
                from: "M0XER-4",
                to: "APRS64",
                path: ["TF3RPF", "WIDE2*", "qAR", "TF3SUT-2"],
-               timestamp: {now(), :receiver_time},
                symbol: "/O",
                position: %{
                  latitude: {64.11987367625208, :hundredth_minute},
@@ -313,7 +281,6 @@ defmodule AprsParserTest do
                from: "M0XER-4",
                to: "APRS64",
                path: ["TF3RPF", "WIDE2*", "qAR", "TF3SUT-2"],
-               timestamp: {now(), :receiver_time},
                symbol: "/O",
                position: %{
                  latitude: {64.11987367625208, :hundredth_minute},
@@ -354,7 +321,6 @@ defmodule AprsParserTest do
                from: "KB3FDA-9",
                to: "S32U6T",
                path: ["KB3FCZ-2", "WIDE1*", "WIDE2-1", "qAO", "KC3VKP-1"],
-               timestamp: {now(), :receiver_time},
                symbol: "/>",
                course: %{
                  direction: 251.0,
@@ -389,7 +355,6 @@ defmodule AprsParserTest do
                device: "Byonics TinyTrack3",
                path: ["KB3FCZ-2", "WIDE1*", "WIDE2-1", "qAR", "WA3YMM-1"],
                symbol: "/>",
-               timestamp: {now(), :receiver_time},
                course: %{direction: 315.0, speed: 12.346656},
                position: %{
                  latitude: {40.351, :hundredth_minute},
@@ -413,7 +378,6 @@ defmodule AprsParserTest do
                to: "SUSUR1",
                path: [],
                symbol: "/[",
-               timestamp: {now(), :receiver_time},
                course: %{direction: 305.0, speed: 0.0},
                position: %{
                  latitude: {35.58683333333333, :hundredth_minute},
@@ -436,7 +400,7 @@ defmodule AprsParserTest do
                to: "TOCALL",
                path: [],
                symbol: "/>",
-               timestamp: {expected_time(9, 23, 45), :sender_time},
+               timestamp: %{day: 9, hour: 23, minute: 45, time_zone: :utc},
                course: %{direction: 88.0, speed: 18.519984},
                position: %{
                  latitude: {49.05833333333333, :hundredth_minute},
@@ -460,7 +424,6 @@ defmodule AprsParserTest do
                to: "TOCALL",
                path: [],
                symbol: "/>",
-               timestamp: {now(), :receiver_time},
                course: %{direction: 88.0, speed: 18.519984},
                position: %{
                  latitude: {49.05833333333333, :hundredth_minute},
@@ -483,7 +446,6 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {now(), :receiver_time},
                status: "status text"
              } == expected_result
     end
@@ -498,7 +460,6 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {now(), :receiver_time},
                symbol: "/-",
                position: %{
                  maidenhead: "IO91SX"
@@ -517,7 +478,7 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {expected_time(9, 23, 45), :sender_time},
+               timestamp: %{day: 9, hour: 23, minute: 45, time_zone: :utc},
                status: "status text"
              } == expected_result
     end
@@ -532,7 +493,6 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {now(), :receiver_time},
                message: %{
                  addressee: "ADDRCALL ",
                  message: "message text"
@@ -550,7 +510,6 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {now(), :receiver_time},
                message: %{
                  addressee: "ADDRCALL ",
                  message: "message text",
@@ -569,7 +528,6 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {now(), :receiver_time},
                message: %{
                  addressee: "ADDRCALL ",
                  message: "ack",
@@ -588,7 +546,6 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {now(), :receiver_time},
                message: %{
                  addressee: "ADDRCALL ",
                  message: "rej",
@@ -615,7 +572,6 @@ defmodule AprsParserTest do
                to: "APDW16",
                path: ["TCPIP*", "qAC", "T2TEXAS"],
                symbol: "I#",
-               timestamp: {now(), :receiver_time},
                position: %{
                  latitude: {40.54216566997265, :hundredth_minute},
                  longitude: {-79.95600195313526, :hundredth_minute}
@@ -640,7 +596,6 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {now(), :receiver_time},
                telemetry: %{
                  to: "FROMCALL",
                  unit: [
@@ -672,7 +627,6 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {now(), :receiver_time},
                telemetry: %{
                  to: "FROMCALL",
                  bits: [1, 1, 0, 0, 1, 0, 1, 0],
@@ -694,7 +648,6 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {now(), :receiver_time},
                telemetry: %{
                  to: "FROMCALL",
                  parm: [
@@ -728,7 +681,6 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {now(), :receiver_time},
                telemetry: %{
                  to: "FROMCALL",
                  eqns: [
@@ -752,7 +704,6 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {now(), :receiver_time},
                telemetry: %{
                  values: [456, 789, 12, 345, 678],
                  bits: [1, 0, 1, 0, 1, 1, 0, 0],
@@ -772,7 +723,6 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {now(), :receiver_time},
                telemetry: %{
                  values: [456, 789, 12, 345, 678],
                  bits: [1, 0, 1, 0, 1, 1, 0, 0]
@@ -791,7 +741,6 @@ defmodule AprsParserTest do
                from: "FROMCALL",
                to: "TOCALL",
                path: [],
-               timestamp: {now(), :receiver_time},
                telemetry: %{
                  values: [456, 789, 12, 345, 678],
                  bits: [1, 0, 1, 0, 1, 1, 0, 0]
@@ -822,7 +771,7 @@ defmodule AprsParserTest do
                from: "DW4636",
                to: "APRS",
                path: ["TCPXX*", "qAX", "CWOP-5"],
-               timestamp: {expected_time(3, 12, 15), :sender_time},
+               timestamp: %{day: 3, hour: 12, minute: 15, time_zone: :utc},
                symbol: "/_",
                position: %{
                  latitude: {40.599, :hundredth_minute},
@@ -854,7 +803,6 @@ defmodule AprsParserTest do
                from: "DW4636",
                to: "APRS",
                path: ["TCPXX*", "qAX", "CWOP-5"],
-               timestamp: {now(), :receiver_time},
                symbol: "/_",
                position: %{
                  latitude: {39.1743251970199, :hundredth_minute},
@@ -1017,7 +965,6 @@ defmodule AprsParserTest do
                from: "EA5JMY-13",
                to: "APRS",
                path: ["TCPIP*", "qAC", "T2UKRAINE"],
-               timestamp: {now(), :receiver_time},
                symbol: "/_",
                position: %{
                  latitude: {39.492, :hundredth_minute},
@@ -1045,7 +992,7 @@ defmodule AprsParserTest do
                to: "APMI06",
                path: ["TUNKMT*", "WIDE2-1", "qAO", "N7JCT-3"],
                comment: "StorybookMtRanch,T=??.?F",
-               timestamp: {expected_time(5, 1, 13), :sender_time},
+               timestamp: %{day: 5, hour: 1, minute: 13, time_zone: :utc},
                symbol: "/-",
                position: %{
                  latitude: {48.8255, :hundredth_minute},
@@ -1069,7 +1016,7 @@ defmodule AprsParserTest do
                path: ["TCPIP*", "qAS", "EA1GGY"],
                comment: "/ {UIV32N}",
                symbol: "/_",
-               timestamp: {expected_time(5, 1, 42), :sender_time},
+               timestamp: %{day: 5, hour: 1, minute: 42, time_zone: :utc},
                position: %{
                  latitude: {42.849833333333336, :hundredth_minute},
                  longitude: {-6.314166666666667, :hundredth_minute}
@@ -1101,7 +1048,7 @@ defmodule AprsParserTest do
                to: "APRS",
                path: ["TCPIP*", "qAS", "VK3ARH"],
                symbol: "/_",
-               timestamp: {expected_time(5, 1, 51), :sender_time},
+               timestamp: %{day: 5, hour: 1, minute: 51, time_zone: :utc},
                position: %{
                  latitude: {-37.69099772659257, :hundredth_minute},
                  longitude: {144.00999669227093, :hundredth_minute}
@@ -1129,7 +1076,6 @@ defmodule AprsParserTest do
                from: "NS8C-6",
                to: "APRX29",
                path: ["TCPIP*", "qAS", "NS8C-1"],
-               timestamp: {now(), :receiver_time},
                telemetry: %{
                  values: [0, 0, 0, 0, 0],
                  bits: [0, 0, 0, 0, 0, 0, 0, 0],
@@ -1153,7 +1099,6 @@ defmodule AprsParserTest do
                path: ["TCPIP*", "qAC", "T2RADOM"],
                comment:
                  " Digi & IGate Jurajski W2,SPn by SQ9NFI on Linux operator SP9JKL ==> http://sq9nfi.pzk.pl",
-               timestamp: {now(), :receiver_time},
                antenna: %{power: 9.0, height: 12.192, gain: 8.0, directivity: :omnidirectional},
                position: %{
                  latitude: {50.5575, :hundredth_minute},
@@ -1178,7 +1123,6 @@ defmodule AprsParserTest do
                path: ["WIDE1-1", "WIDE2-1", "qAR", "S52SX"],
                comment: "PIC  WS-2300 Medvode",
                symbol: "/_",
-               timestamp: {now(), :receiver_time},
                position: %{
                  latitude: {46.14483333333333, :hundredth_minute},
                  longitude: {14.429333333333334, :hundredth_minute}
@@ -1212,7 +1156,6 @@ defmodule AprsParserTest do
                comment: "mou CT3863 S6 11.3C  959hPa 3.4V",
                message: "Priority",
                symbol: "//",
-               timestamp: {now(), :receiver_time},
                course: %{direction: 339.0, speed: 0.0},
                position: %{
                  latitude: {47.27633333333333, :hundredth_minute},
@@ -1238,8 +1181,7 @@ defmodule AprsParserTest do
                message: %{
                  message: "K SOTA SKYWARN SATELLITE BALLOONS WX WEATHER{DQ}",
                  addressee: "ANSRVR   "
-               },
-               timestamp: {now(), :receiver_time}
+               }
              } == expected_result
     end
 
@@ -1255,7 +1197,6 @@ defmodule AprsParserTest do
                from: "XE2MBE-10",
                to: "APMI01",
                path: ["TCPIP*", "qAS", "XE2MBE"],
-               timestamp: {now(), :receiver_time},
                telemetry: %{
                  to: "XE2MBE-10",
                  eqns: [
@@ -1279,8 +1220,7 @@ defmodule AprsParserTest do
                from: "NWS-WARN",
                to: "APRS",
                path: ["qAS", "OE7XGR-10"],
-               message: %{message: "rej", addressee: "SHVFLS   ", message_no: "J00AA"},
-               timestamp: {now(), :receiver_time}
+               message: %{message: "rej", addressee: "SHVFLS   ", message_no: "J00AA"}
              } == expected_result
     end
 
@@ -1296,7 +1236,6 @@ defmodule AprsParserTest do
                path: ["WIDE1-1", "WIDE2-2", "qAU", "DL9OBG-11"],
                message: "Priority",
                device: "Original Mic-E",
-               timestamp: {now(), :receiver_time},
                symbol: "/>",
                course: %{direction: 70.0, speed: 19.034428000000002},
                position: %{
@@ -1321,7 +1260,7 @@ defmodule AprsParserTest do
                path: ["TCPIP*", "qAC", "T2GYOR"],
                comment: "WX3in1Plus2.0 U=12.1V,T=28.3C",
                symbol: "D-",
-               timestamp: {expected_time(5, 17, 39), :sender_time},
+               timestamp: %{day: 5, hour: 17, minute: 39, time_zone: :utc},
                position: %{
                  latitude: {49.804, :hundredth_minute},
                  longitude: {5.998666666666667, :hundredth_minute}
@@ -1342,7 +1281,6 @@ defmodule AprsParserTest do
                from: "KX4O-13",
                to: "APMI06",
                path: ["TCPIP*", "qAS", "KX4O"],
-               timestamp: {now(), :receiver_time},
                telemetry: %{
                  to: "KX4O-13",
                  eqns: [
@@ -1369,7 +1307,6 @@ defmodule AprsParserTest do
                from: "DO7BTR-10",
                to: "APLC13",
                path: ["qAS", "DO9FK-3"],
-               timestamp: {now(), :receiver_time},
                telemetry: %{
                  eqns: [[0.0, 0.1, 0.0], [0.0, 0.1, 0.0], [0.0, 0.1, 0.0]],
                  to: "DO7BTR-10"
@@ -1389,7 +1326,6 @@ defmodule AprsParserTest do
                from: "AG1T-20",
                to: "APRS",
                path: ["TCPIP*", "qAC", "SIXTH"],
-               timestamp: {now(), :receiver_time},
                telemetry: %{
                  bits: [0, 1, 1, 0, 0, 0, 0, 0],
                  sequence_counter: 336,
@@ -1410,7 +1346,6 @@ defmodule AprsParserTest do
                from: "SP2PMK",
                to: "APN100",
                path: ["TCPIP*", "qAC", "T2POLAND"],
-               timestamp: {now(), :receiver_time},
                status: "Zapraszamy w każdy poniedziałek o 18:00 "
              } == expected_result
     end
@@ -1429,7 +1364,6 @@ defmodule AprsParserTest do
                to: "RXTLM-1",
                path: ["TCPIP", "qAR", "IK8TGH"],
                comment: "ORP_SimplexLogic_Port1",
-               timestamp: {now(), :receiver_time},
                telemetry: %{
                  values: [1.5, 0.0, 0, 1, 0.0],
                  bits: [0, 0, 0, 0, 0, 0, 0, 0],
@@ -1451,7 +1385,6 @@ defmodule AprsParserTest do
                to: "T5TV82",
                path: ["S53UAN-10*", "WIDE1*", "WIDE2-1", "qAR", "S58W-10"],
                message: "Special",
-               timestamp: {now(), :receiver_time},
                symbol: "/s",
                course: %{direction: 0.0, speed: 0.0},
                position: %{
@@ -1474,7 +1407,6 @@ defmodule AprsParserTest do
                from: "IR1UFB",
                to: "APMI06",
                path: ["TCPIP*", "qAC", "T2CSNGRAD"],
-               timestamp: {now(), :receiver_time},
                telemetry: %{
                  values: [233, 130, 17, 154, 81],
                  bits: [0, 0, 0, 0, 0, 0, 0, 0],
@@ -1497,7 +1429,6 @@ defmodule AprsParserTest do
                to: "APN391",
                path: ["qAR", "KA5WMY-5"],
                comment: " LaGrange, TX Digipeater - KA5WMY",
-               timestamp: {now(), :receiver_time},
                antenna: %{
                  directivity: :omnidirectional,
                  gain: 7.0,
@@ -1525,7 +1456,7 @@ defmodule AprsParserTest do
                from: "KB2TSV",
                to: "APW280",
                path: ["WIDE2-1", "qAR", "W3ZO-10"],
-               timestamp: {expected_time(3, 6, 22, 14), :sender_time},
+               timestamp: %{month: 3, day: 6, hour: 22, minute: 14, time_zone: :utc},
                weather: %{
                  wind_speed: 113.9952,
                  wind_direction: 0.0,
@@ -1555,7 +1486,6 @@ defmodule AprsParserTest do
                from: "NE4SC-12",
                to: "APRS",
                path: ["WIDE2-2", "qAR", "KW4BET-3"],
-               timestamp: {now(), :receiver_time},
                raw_gps: "ULTW0000000000FD00002805000E8938000103710165045B00000000"
              } == expected_result
     end
@@ -1575,7 +1505,6 @@ defmodule AprsParserTest do
              to: "APRS",
              path: ["TCPIP*", "qAC", "T2CS"],
              comment: "Solar Power WX Station",
-             timestamp: {now(), :receiver_time},
              telemetry: %{
                values: [250, 55, 0, 45],
                bits: [1, 1, 1, 0],
@@ -1597,7 +1526,6 @@ defmodule AprsParserTest do
              from: "DB0BIN",
              to: "APGE01",
              path: ["TCPIP*", "qAC", "T2CSNGRAD"],
-             timestamp: {now(), :receiver_time},
              symbol: "/_",
              position: %{
                latitude: {48.3045, :hundredth_minute},
@@ -1627,7 +1555,6 @@ defmodule AprsParserTest do
              to: "APRSWX",
              from: "OK1IRG-6",
              path: ["TCPIP*", "qAC", "T2CZECH"],
-             timestamp: {now(), :receiver_time},
              symbol: "/_",
              position: %{
                latitude: {50.37883333333333, :hundredth_minute},
@@ -1659,7 +1586,6 @@ defmodule AprsParserTest do
              to: "APRS",
              path: ["TCPIP*", "qAC", "T2LAUSITZ"],
              comment: "APRSuWX 0.1.7h | Malaysia microWX Node  AC-powered: 5.00 volts",
-             timestamp: {now(), :receiver_time},
              symbol: "/_",
              position: %{
                latitude: {1.654, :hundredth_minute},
@@ -1691,7 +1617,7 @@ defmodule AprsParserTest do
              from: "HB9SZU-6",
              to: "APYSNR",
              path: ["TCPIP*", "qAS", "HB9SZU"],
-             timestamp: {expected_time(7, 15, 58), :sender_time},
+             timestamp: %{day: 7, hour: 15, minute: 58, time_zone: :utc},
              symbol: "/_",
              position: %{
                latitude: {46.191833333333335, :hundredth_minute},
@@ -1721,7 +1647,7 @@ defmodule AprsParserTest do
              to: "APW280",
              path: ["WIDE2-1", "qAR", "W3ZO-10"],
              comment: "6r000p000P000h00b00000wDVP",
-             timestamp: {expected_time(3, 6, 22, 14), :sender_time},
+             timestamp: %{month: 3, day: 6, hour: 22, minute: 14, time_zone: :utc},
              weather: %{
                temperature: 163.88888888888889,
                gust_speed: 113.9952,
@@ -1744,7 +1670,6 @@ defmodule AprsParserTest do
              from: "IZ1DNG-10",
              to: "WIDE1-1",
              path: ["WIDE2-2", "qAR", "IR1UFB"],
-             timestamp: {now(), :receiver_time},
              telemetry: %{bits: [1], sequence_counter: 55, values: [184, 130, 165, 126]}
            } == expected_result
   end
@@ -1759,7 +1684,6 @@ defmodule AprsParserTest do
              from: "DK9CL-10",
              to: "APZES",
              path: ["TCPIP*", "qAC", "T2PERTH"],
-             timestamp: {now(), :receiver_time},
              telemetry: %{
                bits: [0, 0, 0, 0, 0, 0, 0, 0],
                sequence_counter: 52,
@@ -1790,8 +1714,7 @@ defmodule AprsParserTest do
                altitude: 115.0
              },
              symbol: "/<",
-             telemetry: %{sequence_counter: 8908, values: [6, 746, 392, 11]},
-             timestamp: {now(), :receiver_time}
+             telemetry: %{sequence_counter: 8908, values: [6, 746, 392, 11]}
            } == expected_result
   end
 
@@ -1815,8 +1738,7 @@ defmodule AprsParserTest do
                longitude: {-116.36266666666667, :hundredth_minute}
              },
              symbol: "/R",
-             telemetry: %{sequence_counter: 140, values: [464, 570]},
-             timestamp: {now(), :receiver_time}
+             telemetry: %{sequence_counter: 140, values: [464, 570]}
            } == expected_result
   end
 
@@ -1835,8 +1757,7 @@ defmodule AprsParserTest do
              telemetry: %{
                eqns: [[0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.0]],
                to: "VK6HGR-1"
-             },
-             timestamp: {now(), :receiver_time}
+             }
            } == expected_result
   end
 
@@ -1871,8 +1792,7 @@ defmodule AprsParserTest do
                latitude: {55.421166666666664, :hundredth_minute},
                longitude: {10.428166666666666, :hundredth_minute}
              },
-             symbol: "x0",
-             timestamp: {now(), :receiver_time}
+             symbol: "x0"
            } == expected_result
   end
 end

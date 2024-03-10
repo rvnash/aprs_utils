@@ -1,14 +1,31 @@
 defmodule APRSUtils.AprsParser do
   @moduledoc """
-  Module for parsing APRS strings into components.
+  Module for parsing APRS packets into components.
 
-  For reference:
-    APRS 1.0.1 Spec: http://www.aprs.org/doc/APRS101.PDF
-    APRS 1.1 Addendum: http://www.aprs.org/aprs11.html
-    APRS 1.2 Addendum: http://www.aprs.org/aprs12.html
+  ## Philosopy
+  This module is designed to mask as much as possible the complexity of the APRS protocol, and
+  reveal only the information contained in the packet. For example, the module will not return
+  any information about the type of packet, such as MIC-E, or weather, or compressed.
+
+  ## Units
+  For historical reasons, APRS uses a variety of units. This module will convert all units to this
+  set of SI units
+  latitude, longitude: degrees (float)
+  distance: meters (float)
+  speed: meters per second (float)
+  temperature: degrees Celsius (float)
+  pressure: pascals (float)
+
+  ## Time handling
+  Some, but not all, APRS packet formats contain timestamps. However all of the formats give only partial time information.
+  One of the most common formats, for example, provides the day, hour, and minutes of transmission. It is the receiver's
+  responsibility to provide the year and month. This can introduce incorrect interpretation of the time, especially if the
+  time between transmission and parsing of the data is long. This module does not attempt to interpret the time, but
+  simply returns the time information that is in the packet. Note that most, but not all, time stamp formats are Zulu Time.
+
+  ## Error Handling
 
   """
-
   defstruct raw: nil,
             to: nil,
             from: nil,
@@ -28,66 +45,61 @@ defmodule APRSUtils.AprsParser do
             raw_gps: nil,
             comment: nil
 
-  defp init_aprs,
-    do: %__MODULE__{
-      raw: nil,
-      from: nil,
-      to: nil,
-      path: nil
-    }
-
   # Because of the compile time nature of guards, this check is limitted to the first 9 characters
   @digits ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
 
-  defguard is_all_digits(term)
-           when is_binary(term) and
-                  binary_part(term, 0, 1) in @digits and
-                  (byte_size(term) < 2 or binary_part(term, 1, 1) in @digits) and
-                  (byte_size(term) < 3 or binary_part(term, 2, 1) in @digits) and
-                  (byte_size(term) < 4 or binary_part(term, 3, 1) in @digits) and
-                  (byte_size(term) < 5 or binary_part(term, 4, 1) in @digits) and
-                  (byte_size(term) < 6 or binary_part(term, 5, 1) in @digits) and
-                  (byte_size(term) < 7 or binary_part(term, 6, 1) in @digits) and
-                  (byte_size(term) < 8 or binary_part(term, 7, 1) in @digits) and
-                  (byte_size(term) < 9 or binary_part(term, 8, 1) in @digits) and
-                  byte_size(term) < 10
+  defguardp is_all_digits(term)
+            when is_binary(term) and
+                   binary_part(term, 0, 1) in @digits and
+                   (byte_size(term) < 2 or binary_part(term, 1, 1) in @digits) and
+                   (byte_size(term) < 3 or binary_part(term, 2, 1) in @digits) and
+                   (byte_size(term) < 4 or binary_part(term, 3, 1) in @digits) and
+                   (byte_size(term) < 5 or binary_part(term, 4, 1) in @digits) and
+                   (byte_size(term) < 6 or binary_part(term, 5, 1) in @digits) and
+                   (byte_size(term) < 7 or binary_part(term, 6, 1) in @digits) and
+                   (byte_size(term) < 8 or binary_part(term, 7, 1) in @digits) and
+                   (byte_size(term) < 9 or binary_part(term, 8, 1) in @digits) and
+                   byte_size(term) < 10
 
   def fn_is_all_digits(term), do: is_all_digits(term)
 
   # Because of the compile time nature of guards, this check is limitted to the first 9 characters
   @float_chars ["-", "." | @digits]
-  defguard is_all_float(term)
-           when is_binary(term) and
-                  binary_part(term, 0, 1) in @float_chars and
-                  (byte_size(term) < 2 or binary_part(term, 1, 1) in @float_chars) and
-                  (byte_size(term) < 3 or binary_part(term, 2, 1) in @float_chars) and
-                  (byte_size(term) < 4 or binary_part(term, 3, 1) in @float_chars) and
-                  (byte_size(term) < 5 or binary_part(term, 4, 1) in @float_chars) and
-                  (byte_size(term) < 6 or binary_part(term, 5, 1) in @float_chars) and
-                  (byte_size(term) < 7 or binary_part(term, 6, 1) in @float_chars) and
-                  (byte_size(term) < 8 or binary_part(term, 7, 1) in @float_chars) and
-                  (byte_size(term) < 9 or binary_part(term, 8, 1) in @float_chars) and
-                  byte_size(term) < 10
+  defguardp is_all_float(term)
+            when is_binary(term) and
+                   binary_part(term, 0, 1) in @float_chars and
+                   (byte_size(term) < 2 or binary_part(term, 1, 1) in @float_chars) and
+                   (byte_size(term) < 3 or binary_part(term, 2, 1) in @float_chars) and
+                   (byte_size(term) < 4 or binary_part(term, 3, 1) in @float_chars) and
+                   (byte_size(term) < 5 or binary_part(term, 4, 1) in @float_chars) and
+                   (byte_size(term) < 6 or binary_part(term, 5, 1) in @float_chars) and
+                   (byte_size(term) < 7 or binary_part(term, 6, 1) in @float_chars) and
+                   (byte_size(term) < 8 or binary_part(term, 7, 1) in @float_chars) and
+                   (byte_size(term) < 9 or binary_part(term, 8, 1) in @float_chars) and
+                   byte_size(term) < 10
 
   def fn_is_all_float(term), do: is_all_float(term)
 
   @doc """
   Parses an APRS string into components.
 
-  ## Examples
+  ## Args
+
+  - 'model' - The APRS packet to parse. Note that this is a binary, but is not necessarily a
+  valid String. APRS packets can, and regularly do, contain non-printable characters, and non-UTF-8 sequences.
 
 
   """
-  def parse(aprs_string) do
+  @spec parse(binary) :: {:ok, %__MODULE__{}} | {:error, Map.t()}
+  def parse(aprs_packet) when is_binary(aprs_packet) do
     try do
-      {init_aprs(), aprs_string}
+      {%__MODULE__{}, aprs_packet}
       |> get_raw()
       |> get_from()
       |> get_to()
       |> get_paths()
       |> strip_server_generated_q_constructs()
       |> parse_information_field()
-      |> maybe_add_utc_time()
       |> maybe_add_altitude_from_comment()
       |> maybe_add_base_91_telemetry_from_comment()
       |> maybe_add_dao_from_comment()
@@ -204,7 +216,7 @@ defmodule APRSUtils.AprsParser do
        )
        when data_identifier in ["@", "/"] do
     if String.match?(time, ~r/^[\d]*$/) do
-      {add_info(aprs, timestamp: {parse_timestamp(time, time_indicator), :sender_time}), rest}
+      {add_info(aprs, timestamp: parse_timestamp(time, time_indicator)), rest}
       |> parse_w_data_identifier("!")
     else
       throw({{aprs, msg}, "Timestamp contains non-digit characters: #{time}"})
@@ -531,7 +543,7 @@ defmodule APRSUtils.AprsParser do
        when is_all_digits(dhm) do
     {aprs
      |> add_info(status: msg)
-     |> add_info(timestamp: {parse_timestamp(dhm, "z"), :sender_time}), ""}
+     |> add_info(timestamp: parse_timestamp(dhm, "z")), ""}
   end
 
   defp parse_status_report(
@@ -994,7 +1006,7 @@ defmodule APRSUtils.AprsParser do
   defp parse_cs(aprs, _cs, _comp_type), do: aprs
 
   defp parse_positionless_weather_report({aprs, <<mdhm::binary-size(8), weather_data::binary>>}) do
-    {add_info(aprs, timestamp: {parse_timestamp_mdhm(mdhm), :sender_time}), weather_data}
+    {add_info(aprs, timestamp: parse_timestamp_mdhm(mdhm)), weather_data}
     |> add_weather_parameters(true)
   end
 
@@ -1406,16 +1418,6 @@ defmodule APRSUtils.AprsParser do
     {Map.put(aprs, :comment, msg), ""}
   end
 
-  # If parsing didn't come up w/ a timestamp for this message, add the local time
-  # in case the client wants to use it
-  defp maybe_add_utc_time({aprs, msg}) do
-    if aprs.timestamp != nil do
-      {aprs, msg}
-    else
-      {add_info(aprs, timestamp: {now(), :receiver_time}), msg}
-    end
-  end
-
   # See Altitude in the comment text: Chapter 6 pg 26 of http://www.aprs.org/doc/APRS101.PDF
   # Note this does not extract the altitude from the comment, it only adds it to the position
   defp maybe_add_altitude_from_comment({%__MODULE__{comment: nil} = aprs, msg}), do: {aprs, msg}
@@ -1575,18 +1577,12 @@ defmodule APRSUtils.AprsParser do
          time_indicator
        )
        when time_indicator in ["/"] do
-    now = local_now()
-
-    NaiveDateTime.new(
-      now.year,
-      now.month,
-      String.to_integer(day),
-      String.to_integer(hour),
-      String.to_integer(minute),
-      0,
-      0
-    )
-    |> elem(1)
+    %{
+      day: String.to_integer(day),
+      hour: String.to_integer(hour),
+      minute: String.to_integer(minute),
+      time_zone: :local_to_sender
+    }
   end
 
   # HMS - Zulu time
@@ -1595,18 +1591,12 @@ defmodule APRSUtils.AprsParser do
          time_indicator
        )
        when time_indicator in ["h"] do
-    now = now()
-
-    NaiveDateTime.new(
-      now.year,
-      now.month,
-      now.day,
-      String.to_integer(hour),
-      String.to_integer(minute),
-      String.to_integer(second),
-      0
-    )
-    |> elem(1)
+    %{
+      hour: String.to_integer(hour),
+      minute: String.to_integer(minute),
+      second: String.to_integer(second),
+      time_zone: :utc
+    }
   end
 
   # DHM - Zulu time
@@ -1617,18 +1607,12 @@ defmodule APRSUtils.AprsParser do
          <<day::binary-size(2), hour::binary-size(2), minute::binary-size(2)>>,
          _time_indicator
        ) do
-    now = now()
-
-    NaiveDateTime.new(
-      now.year,
-      now.month,
-      String.to_integer(day),
-      String.to_integer(hour),
-      String.to_integer(minute),
-      0,
-      0
-    )
-    |> elem(1)
+    %{
+      day: String.to_integer(day),
+      hour: String.to_integer(hour),
+      minute: String.to_integer(minute),
+      time_zone: :utc
+    }
   end
 
   # MDHM - Zulu time w/o a time indicator (from Positionless Weather Report)
@@ -1636,18 +1620,13 @@ defmodule APRSUtils.AprsParser do
          <<month::binary-size(2), day::binary-size(2), hour::binary-size(2),
            minute::binary-size(2)>>
        ) do
-    now = now()
-
-    NaiveDateTime.new(
-      now.year,
-      String.to_integer(month),
-      String.to_integer(day),
-      String.to_integer(hour),
-      String.to_integer(minute),
-      0,
-      0
-    )
-    |> elem(1)
+    %{
+      month: String.to_integer(month),
+      day: String.to_integer(day),
+      hour: String.to_integer(hour),
+      minute: String.to_integer(minute),
+      time_zone: :utc
+    }
   end
 
   defp add_info(%__MODULE__{} = aprs, opts) when is_list(opts) do
@@ -1764,16 +1743,5 @@ defmodule APRSUtils.AprsParser do
   def parse_comma_separated_string(string, fn_is_in_set)
       when is_binary(string) and is_function(fn_is_in_set) do
     parse_comma_separated_string_into(string, [""], fn_is_in_set)
-  end
-
-  defp now do
-    NaiveDateTime.utc_now(:second)
-  end
-
-  defp local_now do
-    now = NaiveDateTime.local_now()
-
-    NaiveDateTime.new(now.year, now.month, now.day, now.hour, now.minute, now.second, 0)
-    |> elem(1)
   end
 end
