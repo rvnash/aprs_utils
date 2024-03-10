@@ -1,11 +1,10 @@
 # APRSUtils 
 
-Module for with two useful (hopefully functions).
+Library with two useful (hopefully) modules for APRS developers.
 1. Function for parsing APRS packets into components.
 2. GenServer for connecting to APRS_IS
 
 ## References
-The documentation used to implement this functionality can be found here.
 
 ### The APRS Spec
 * [APRS 1.0.1 Spec](https://www.aprs-is.net/)

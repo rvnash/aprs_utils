@@ -72,7 +72,17 @@ defmodule APRSUtils.AprsIs do
 end
 
 defmodule APRSUtilsIsClient do
-  @callback got_packet(binary(), integer()) :: :ok
+  @moduledoc """
+  Callbacks for the APRSUtils.AprsIs client module
+
+  """
+
+  @doc """
+  Called when a packet is recieved from the APRS-IS server. Note that the packet is
+  a binary, but not necessarily a valid String. The packet_count is the number of packets
+  recieved since the connection was established.
+  """
+  @callback got_packet(packet :: binary(), packet_count :: integer()) :: :ok
   @callback connected(binary()) :: :ok
   @callback disconnected() :: :ok
   @callback got_comment(binary()) :: :ok

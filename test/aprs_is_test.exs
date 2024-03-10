@@ -24,6 +24,7 @@ defmodule Balloons.Utils.AprsIsTest do
 end
 
 defmodule Client do
+  @moduledoc false
   alias APRSUtils.AprsParser
   @behaviour APRSUtilsIsClient
   def got_packet(packet, packet_count) do

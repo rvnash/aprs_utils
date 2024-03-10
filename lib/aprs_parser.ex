@@ -5,7 +5,7 @@ defmodule APRSUtils.AprsParser do
   ## Philosopy
   This module is designed to mask as much as possible the complexity of the APRS protocol, and
   reveal only the information contained in the packet. For example, the module will not return
-  any information about the type of packet, such as MIC-E, or weather, or compressed.
+  any information about the type of packet.
 
   ## Units
   For historical reasons, APRS uses a variety of units. This module will convert all units to this
@@ -15,6 +15,7 @@ defmodule APRSUtils.AprsParser do
   speed: meters per second (float)
   temperature: degrees Celsius (float)
   pressure: pascals (float)
+  humidity: relative percent (float)
 
   ## Time handling
   Some, but not all, APRS packet formats contain timestamps. However all of the formats give only partial time information.
@@ -23,7 +24,7 @@ defmodule APRSUtils.AprsParser do
   time between transmission and parsing of the data is long. This module does not attempt to interpret the time, but
   simply returns the time information that is in the packet. Note that most, but not all, time stamp formats are Zulu Time.
 
-  ## Error Handling
+  ## Unsupported APRS Features
 
   """
   defstruct raw: nil,
@@ -61,8 +62,6 @@ defmodule APRSUtils.AprsParser do
                    (byte_size(term) < 9 or binary_part(term, 8, 1) in @digits) and
                    byte_size(term) < 10
 
-  def fn_is_all_digits(term), do: is_all_digits(term)
-
   # Because of the compile time nature of guards, this check is limitted to the first 9 characters
   @float_chars ["-", "." | @digits]
   defguardp is_all_float(term)
@@ -78,7 +77,7 @@ defmodule APRSUtils.AprsParser do
                    (byte_size(term) < 9 or binary_part(term, 8, 1) in @float_chars) and
                    byte_size(term) < 10
 
-  def fn_is_all_float(term), do: is_all_float(term)
+  defp fn_is_all_float(term), do: is_all_float(term)
 
   @doc """
   Parses an APRS string into components.
@@ -88,7 +87,35 @@ defmodule APRSUtils.AprsParser do
   - 'model' - The APRS packet to parse. Note that this is a binary, but is not necessarily a
   valid String. APRS packets can, and regularly do, contain non-printable characters, and non-UTF-8 sequences.
 
+  ## Returns
+   {:ok, %APRSUtils.AprsParser{}}
+   If an :ok is returned, the APRS packet has been successfully parsed into a struct. The struct contains the
+   decoded components of the APRS packet. If the field of the struct is nil, then the packet did not contain
+   that information.
 
+   Here is how to interpret each field of the struct:
+  raw: nil,
+            to: nil,
+            from: nil,
+            path: [],
+            timestamp: nil,
+            symbol: nil,
+            position: nil,
+            course: nil,
+            antenna: nil,
+            weather: nil,
+            telemetry: nil,
+            message: nil,
+            status: nil,
+            device: nil,
+            object: nil,
+            item: nil,
+            raw_gps: nil,
+            comment: nil
+
+
+  ## Errors
+  {:error, Map.t()}
   """
   @spec parse(binary) :: {:ok, %__MODULE__{}} | {:error, Map.t()}
   def parse(aprs_packet) when is_binary(aprs_packet) do
@@ -160,12 +187,15 @@ defmodule APRSUtils.AprsParser do
     {add_info(aprs, path: []), rest}
   end
 
-  defp get_paths({aprs, <<separator::binary-size(1), rest::binary>> = _msg})
+  defp get_paths({aprs, <<separator::binary-size(1), rest::binary>> = msg})
        when separator == "," do
-    {path, <<_remove::binary-size(1), rest::binary>>} =
-      parse_comma_separated_string(rest, fn c -> c != ":" end)
+    case parse_comma_separated_string(rest, fn c -> c != ":" end) do
+      {path, <<_remove::binary-size(1), rest::binary>>} ->
+        {add_info(aprs, path: path), rest}
 
-    {add_info(aprs, path: path), rest}
+      _ ->
+        throw({{aprs, msg}, "Could not parse the PATH"})
+    end
   end
 
   defp get_paths(p), do: throw({p, "Could not parse the PATH"})
@@ -577,13 +607,15 @@ defmodule APRSUtils.AprsParser do
   end
 
   # Altitiude in the Mic-E status message: Page 55, Chapter 10 of http://www.aprs.org/doc/APRS101.PDF
-  def maybe_extract_mic_e_altitude({aprs, <<altitude::binary-size(3), "}", rest::binary>> = _msg}) do
+  defp maybe_extract_mic_e_altitude(
+         {aprs, <<altitude::binary-size(3), "}", rest::binary>> = _msg}
+       ) do
     {add_info(aprs, :position, %{
        altitude: decode_base91_ascii_string(altitude) - 10000.0
      }), rest}
   end
 
-  def maybe_extract_mic_e_altitude(p), do: p
+  defp maybe_extract_mic_e_altitude(p), do: p
 
   # Extract the Mic-E device type: See http://www.aprs.org/aprs12/mic-e-types.txt
   defp extract_mic_e_device({aprs, ""}) do
@@ -1036,21 +1068,21 @@ defmodule APRSUtils.AprsParser do
 
   defp parse_weather_data(p), do: p
 
-  def add_wind_direction({aprs, rest}, wind_direction) when wind_direction in ["...", "   "] do
+  defp add_wind_direction({aprs, rest}, wind_direction) when wind_direction in ["...", "   "] do
     {aprs, rest}
   end
 
-  def add_wind_direction({aprs, rest}, wind_direction) do
+  defp add_wind_direction({aprs, rest}, wind_direction) do
     {add_info(aprs, :weather, %{
        wind_direction: to_float(wind_direction)
      }), rest}
   end
 
-  def add_wind_speed({aprs, rest}, wind_speed) when wind_speed in ["...", "   "] do
+  defp add_wind_speed({aprs, rest}, wind_speed) when wind_speed in ["...", "   "] do
     {aprs, rest}
   end
 
-  def add_wind_speed({aprs, rest}, wind_speed) do
+  defp add_wind_speed({aprs, rest}, wind_speed) do
     {add_info(aprs, :weather, %{
        wind_speed: to_float(wind_speed)
      }), rest}
@@ -1712,11 +1744,11 @@ defmodule APRSUtils.AprsParser do
   defp convert(value, func) when is_function(func), do: func.(value)
   defp convert(value, factor) when is_float(factor), do: factor * value
 
-  def parse_comma_separated_string_into(
-        <<c::binary-size(1), rest::binary>>,
-        [head | tail] = list,
-        fn_is_in_set
-      ) do
+  defp parse_comma_separated_string_into(
+         <<c::binary-size(1), rest::binary>>,
+         [head | tail] = list,
+         fn_is_in_set
+       ) do
     if c == "," do
       parse_comma_separated_string_into(rest, ["" | list], fn_is_in_set)
     else
@@ -1732,16 +1764,16 @@ defmodule APRSUtils.AprsParser do
     end
   end
 
-  def parse_comma_separated_string_into("", [head | tail] = _list, _fn_is_in_set)
-      when head == "" do
+  defp parse_comma_separated_string_into("", [head | tail] = _list, _fn_is_in_set)
+       when head == "" do
     {Enum.reverse(tail), ""}
   end
 
-  def parse_comma_separated_string_into("", list, _fn_is_in_set),
+  defp parse_comma_separated_string_into("", list, _fn_is_in_set),
     do: {Enum.reverse(list), ""}
 
-  def parse_comma_separated_string(string, fn_is_in_set)
-      when is_binary(string) and is_function(fn_is_in_set) do
+  defp parse_comma_separated_string(string, fn_is_in_set)
+       when is_binary(string) and is_function(fn_is_in_set) do
     parse_comma_separated_string_into(string, [""], fn_is_in_set)
   end
 end

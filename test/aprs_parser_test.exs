@@ -822,8 +822,23 @@ defmodule AprsParserTest do
 
   describe "Tests of error cases, expected to return errors" do
     # ---------------------------------------------------------------
+    test "Invalid path" do
+      assert {:error, _str} = AprsParser.parse("")
+    end
+
+    # ---------------------------------------------------------------
     test "Invalid paths" do
       assert {:error, _str} = AprsParser.parse("INVALID APRS DATA")
+    end
+
+    # ---------------------------------------------------------------
+    test "Invalid path 3" do
+      assert {:error, _str} = AprsParser.parse("abc>")
+    end
+
+    # ---------------------------------------------------------------
+    test "Invalid path 4" do
+      assert {:error, _str} = AprsParser.parse("abc>aaa,")
     end
 
     # ---------------------------------------------------------------
