@@ -320,9 +320,6 @@ defmodule APRSUtils.AprsParser do
 
                "_" ->
                  :killed
-
-               _ ->
-                 throw({{aprs, msg}, "Could not parse the item state: #{state}"})
              end
          }), rest}
         |> parse_w_data_identifier("!")
@@ -635,7 +632,11 @@ defmodule APRSUtils.AprsParser do
         {add_info(aprs, device: "Kenwood TH-D74"), String.slice(rest, 0, String.length(rest) - 1)}
 
       _ ->
-        {add_info(aprs, device: "Kenwood TH-D7A"), rest}
+        if String.length(rest) > 1 do
+          {add_info(aprs, device: "Kenwood TH-D7A"), rest}
+        else
+          {add_info(aprs, device: "Kenwood TH-D7A"), ""}
+        end
     end
   end
 
@@ -646,7 +647,8 @@ defmodule APRSUtils.AprsParser do
          String.slice(rest, 0, String.length(rest) - 1)}
 
       _ ->
-        {add_info(aprs, device: "Kenwood TH-D700"), rest}
+        {add_info(aprs, device: "Kenwood TM-D700"),
+         String.slice(rest, 0, String.length(rest) - 1)}
     end
   end
 
@@ -655,7 +657,7 @@ defmodule APRSUtils.AprsParser do
       "_ " ->
         {add_info(aprs, device: "Yaesu VX-8"), String.slice(rest, 0, String.length(rest) - 2)}
 
-      "_\=" ->
+      "_=" ->
         {add_info(aprs, device: "Yaesu FTM-350"), String.slice(rest, 0, String.length(rest) - 2)}
 
       "_#" ->
@@ -720,37 +722,7 @@ defmodule APRSUtils.AprsParser do
     end
   end
 
-  defp extract_mic_e_device({aprs, <<b::binary-size(1), rest::binary>> = _msg}) do
-    case String.slice(rest, -2, 2) do
-      "\\\\" <> v ->
-        {add_info(aprs, device: "Hamhud #{v}"), String.slice(rest, 0, String.length(rest) - 2)}
-
-      "/" <> v ->
-        {add_info(aprs, device: "Argent #{v}"), String.slice(rest, 0, String.length(rest) - 2)}
-
-      "^" <> v ->
-        {add_info(aprs, device: "HinzTec anyfrog #{v}"),
-         String.slice(rest, 0, String.length(rest) - 2)}
-
-      "*" <> v ->
-        {add_info(aprs, device: "APOZxxx www.KissOK.dk Tracker #{v}"),
-         String.slice(rest, 0, String.length(rest) - 2)}
-
-      "~" <> v ->
-        {add_info(aprs, device: "OTHER #{v}"), String.slice(rest, 0, String.length(rest) - 2)}
-
-      _ ->
-        {aprs, b <> rest}
-    end
-  end
-
-  # If that pesky kenwoond generated extra byte is present, remove it
-  defp parse_mic_e_data(
-         {aprs, <<msg::binary-size(8), kenwood_extra_char::binary-size(1), rest::binary>> = _msg}
-       )
-       when kenwood_extra_char in [">", "]"] do
-    parse_mic_e_data({aprs, msg <> rest})
-  end
+  defp extract_mic_e_device(p), do: p
 
   defp parse_mic_e_data(
          {aprs,

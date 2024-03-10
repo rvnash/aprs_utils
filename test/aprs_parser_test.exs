@@ -392,6 +392,27 @@ defmodule AprsParserTest do
     # ---------------------------------------------------------------
     test "Object" do
       assert {:ok, expected_result} =
+               AprsParser.parse("FROMCALL>TOCALL:;LEADER   _092345z4903.50N/07201.75W>088/036")
+
+      assert %AprsParser{
+               raw: "FROMCALL>TOCALL:;LEADER   _092345z4903.50N/07201.75W>088/036",
+               from: "FROMCALL",
+               to: "TOCALL",
+               path: [],
+               symbol: "/>",
+               timestamp: %{day: 9, hour: 23, minute: 45, time_zone: :utc},
+               course: %{direction: 88.0, speed: 18.519984},
+               position: %{
+                 latitude: {49.05833333333333, :hundredth_minute},
+                 longitude: {-72.02916666666667, :hundredth_minute}
+               },
+               object: %{
+                 state: :killed,
+                 name: "LEADER   "
+               }
+             } == expected_result
+
+      assert {:ok, expected_result} =
                AprsParser.parse("FROMCALL>TOCALL:;LEADER   *092345z4903.50N/07201.75W>088/036")
 
       assert %AprsParser{
@@ -415,6 +436,26 @@ defmodule AprsParserTest do
 
     # ---------------------------------------------------------------
     test "Item" do
+      assert {:ok, expected_result} =
+               AprsParser.parse("FROMCALL>TOCALL:)ITEM!4903.50N/07201.75W>088/036")
+
+      assert %AprsParser{
+               raw: "FROMCALL>TOCALL:)ITEM!4903.50N/07201.75W>088/036",
+               from: "FROMCALL",
+               to: "TOCALL",
+               path: [],
+               symbol: "/>",
+               course: %{direction: 88.0, speed: 18.519984},
+               position: %{
+                 latitude: {49.05833333333333, :hundredth_minute},
+                 longitude: {-72.02916666666667, :hundredth_minute}
+               },
+               item: %{
+                 state: :alive,
+                 name: "ITEM"
+               }
+             } == expected_result
+
       assert {:ok, expected_result} =
                AprsParser.parse("FROMCALL>TOCALL:)ITEM_4903.50N/07201.75W>088/036")
 
@@ -842,9 +883,23 @@ defmodule AprsParserTest do
     end
 
     # ---------------------------------------------------------------
+    test "Unimplemented ident byte" do
+      assert {:error, _str} =
+               AprsParser.parse("FROMCALL>TOCALL:#4903.50N/07201.75W-Test /A=001234")
+    end
+
+    # ---------------------------------------------------------------
     test "Invalid ident byte" do
       assert {:error, _str} =
                AprsParser.parse("FROMCALL>TOCALL:~4903.50N/07201.75W-Test /A=001234")
+    end
+
+    # ---------------------------------------------------------------
+    test "Path not valid string" do
+      assert {:error, _reason} =
+               AprsParser.parse(
+                 "WW4BSA-9>APBPQ1,\xa1\xaaPIP*,qAC,T2SJC:;WW4BSA*111111z3008.76N/08144.86W"
+               )
     end
 
     # ---------------------------------------------------------------
@@ -963,6 +1018,18 @@ defmodule AprsParserTest do
     test "Too long Mic-e TO field" do
       assert {:error, _reason} =
                AprsParser.parse("WB5LIV>K5PEWWW,WIDE1*,WIDE2-1,qAo,N5UKZ:`vTom6F>/`\"4\"}_%")
+    end
+
+    test "Bad item state" do
+      assert {:error, _reason} =
+               AprsParser.parse("FROMCALL>TOCALL:)ITEM^4903.50N/07201.75W>088/036")
+    end
+
+    test "too many digits in telemetry sequence" do
+      assert {:error, _reason} =
+               AprsParser.parse(
+                 "NS8C-6>APRX29,TCPIP*,qAS,NS8C-1:T#123456,0.0,0.0,0.0,0.0,0.0,00000000"
+               )
     end
   end
 
@@ -1083,6 +1150,40 @@ defmodule AprsParserTest do
     test "Live test crash 5: Telemetry not an integer problem" do
       assert {:ok, expected_result} =
                AprsParser.parse(
+                 "NS8C-6>APRX29,TCPIP*,qAS,NS8C-1:T#2,0.0,0.0,0.0,0.0,0.0,00000000"
+               )
+
+      assert %AprsParser{
+               raw: "NS8C-6>APRX29,TCPIP*,qAS,NS8C-1:T#2,0.0,0.0,0.0,0.0,0.0,00000000",
+               from: "NS8C-6",
+               to: "APRX29",
+               path: ["TCPIP*", "qAS", "NS8C-1"],
+               telemetry: %{
+                 values: [0, 0, 0, 0, 0],
+                 bits: [0, 0, 0, 0, 0, 0, 0, 0],
+                 sequence_counter: 2
+               }
+             } == expected_result
+
+      assert {:ok, expected_result} =
+               AprsParser.parse(
+                 "NS8C-6>APRX29,TCPIP*,qAS,NS8C-1:T#23,0.0,0.0,0.0,0.0,0.0,00000000"
+               )
+
+      assert %AprsParser{
+               raw: "NS8C-6>APRX29,TCPIP*,qAS,NS8C-1:T#23,0.0,0.0,0.0,0.0,0.0,00000000",
+               from: "NS8C-6",
+               to: "APRX29",
+               path: ["TCPIP*", "qAS", "NS8C-1"],
+               telemetry: %{
+                 values: [0, 0, 0, 0, 0],
+                 bits: [0, 0, 0, 0, 0, 0, 0, 0],
+                 sequence_counter: 23
+               }
+             } == expected_result
+
+      assert {:ok, expected_result} =
+               AprsParser.parse(
                  "NS8C-6>APRX29,TCPIP*,qAS,NS8C-1:T#234,0.0,0.0,0.0,0.0,0.0,00000000"
                )
 
@@ -1095,6 +1196,40 @@ defmodule AprsParserTest do
                  values: [0, 0, 0, 0, 0],
                  bits: [0, 0, 0, 0, 0, 0, 0, 0],
                  sequence_counter: 234
+               }
+             } == expected_result
+
+      assert {:ok, expected_result} =
+               AprsParser.parse(
+                 "NS8C-6>APRX29,TCPIP*,qAS,NS8C-1:T#1234,0.0,0.0,0.0,0.0,0.0,00000000"
+               )
+
+      assert %AprsParser{
+               raw: "NS8C-6>APRX29,TCPIP*,qAS,NS8C-1:T#1234,0.0,0.0,0.0,0.0,0.0,00000000",
+               from: "NS8C-6",
+               to: "APRX29",
+               path: ["TCPIP*", "qAS", "NS8C-1"],
+               telemetry: %{
+                 values: [0, 0, 0, 0, 0],
+                 bits: [0, 0, 0, 0, 0, 0, 0, 0],
+                 sequence_counter: 1234
+               }
+             } == expected_result
+
+      assert {:ok, expected_result} =
+               AprsParser.parse(
+                 "NS8C-6>APRX29,TCPIP*,qAS,NS8C-1:T#12345,0.0,0.0,0.0,0.0,0.0,00000000"
+               )
+
+      assert %AprsParser{
+               raw: "NS8C-6>APRX29,TCPIP*,qAS,NS8C-1:T#12345,0.0,0.0,0.0,0.0,0.0,00000000",
+               from: "NS8C-6",
+               to: "APRX29",
+               path: ["TCPIP*", "qAS", "NS8C-1"],
+               telemetry: %{
+                 values: [0, 0, 0, 0, 0],
+                 bits: [0, 0, 0, 0, 0, 0, 0, 0],
+                 sequence_counter: 12345
                }
              } == expected_result
     end
@@ -1241,23 +1376,54 @@ defmodule AprsParserTest do
 
     # ---------------------------------------------------------------
     test "Live test crash 12: Mic-E problem w/ parsing to address encoded" do
-      assert {:ok, expected_result} =
-               AprsParser.parse("DL9OBG-9>UR5RW7,WIDE1-1,WIDE2-2,qAU,DL9OBG-11:`~3qofb>/")
+      devices = [
+        %{type: "", code: "", device: "Original Mic-E"},
+        %{type: "", code: " ", device: "Original Mic-E"},
+        %{type: ">", code: "=", device: "Kenwood TH-D72"},
+        %{type: ">", code: "^", device: "Kenwood TH-D74"},
+        %{type: ">", code: "_", device: "Kenwood TH-D7A"},
+        %{type: "]", code: "=", device: "Kenwood TM-D710"},
+        %{type: "]", code: "_", device: "Kenwood TM-D700"},
+        %{type: "`", code: "_ ", device: "Yaesu VX-8"},
+        %{type: "`", code: "_=", device: "Yaesu FTM-350"},
+        %{type: "`", code: "_#", device: "Yaesu VX-8G"},
+        %{type: "`", code: "_$", device: "Yaesu FT1D"},
+        %{type: "`", code: "_%", device: "Yaesu FTM-400DR"},
+        %{type: "`", code: "_)", device: "Yaesu FTM-100D"},
+        %{type: "`", code: "_(", device: "Yaesu FT2D"},
+        %{type: "`", code: "_0", device: "Yaesu FT3D"},
+        %{type: "`", code: "_3", device: "Yaesu FT5D"},
+        %{type: "`", code: "_1", device: "Yaesu FTM-300D"},
+        %{type: "`", code: " X", device: "AP510"},
+        %{type: "`", code: "(5", device: "Anytone D578UV"},
+        %{type: "'", code: "(8", device: "Anytone D878UV"},
+        %{type: "'", code: "|3", device: "Byonics TinyTrack3"},
+        %{type: "'", code: "|4", device: "Byonics TinyTrack5"},
+        %{type: "'", code: ":4", device: "SCS GmbH & Co. P4dragon DR-7400 modems"},
+        %{type: "'", code: ":8", device: "SCS GmbH & Co. P4dragon DR-7800 modems"}
+      ]
 
-      assert %AprsParser{
-               raw: "DL9OBG-9>UR5RW7,WIDE1-1,WIDE2-2,qAU,DL9OBG-11:`~3qofb>/",
-               from: "DL9OBG-9",
-               to: "UR5RW7",
-               path: ["WIDE1-1", "WIDE2-2", "qAU", "DL9OBG-11"],
-               message: "Priority",
-               device: "Original Mic-E",
-               symbol: "/>",
-               course: %{direction: 70.0, speed: 19.034428000000002},
-               position: %{
-                 latitude: {52.8795, :hundredth_minute},
-                 longitude: {98.3975, :hundredth_minute}
-               }
-             } == expected_result
+      Enum.each(devices, fn m ->
+        assert {:ok, expected_result} =
+                 AprsParser.parse(
+                   "DL9OBG-9>UR5RW7,WIDE1-1,WIDE2-2,qAU,DL9OBG-11:`~3qofb>/#{m.type}#{m.code}"
+                 )
+
+        assert %AprsParser{
+                 raw: "DL9OBG-9>UR5RW7,WIDE1-1,WIDE2-2,qAU,DL9OBG-11:`~3qofb>/#{m.type}#{m.code}",
+                 from: "DL9OBG-9",
+                 to: "UR5RW7",
+                 path: ["WIDE1-1", "WIDE2-2", "qAU", "DL9OBG-11"],
+                 message: "Priority",
+                 device: m.device,
+                 symbol: "/>",
+                 course: %{direction: 70.0, speed: 19.034428000000002},
+                 position: %{
+                   latitude: {52.8795, :hundredth_minute},
+                   longitude: {98.3975, :hundredth_minute}
+                 }
+               } == expected_result
+      end)
     end
 
     # ---------------------------------------------------------------
@@ -1402,6 +1568,7 @@ defmodule AprsParserTest do
                message: "Special",
                symbol: "/s",
                course: %{direction: 0.0, speed: 0.0},
+               device: "Kenwood TH-D7A",
                position: %{
                  altitude: 4.0,
                  latitude: {45.78033333333333, :hundredth_minute},
