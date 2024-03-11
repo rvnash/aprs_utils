@@ -3,28 +3,41 @@ defmodule APRSUtils.AprsParser do
   Module for parsing APRS packets into components.
 
   ## Philosopy
-  This module is designed to mask as much as possible the complexity of the APRS protocol, and
+  This module is designed to abstract as much as possible the complexity of the APRS protocol, and
   reveal only the information contained in the packet. For example, the module will not return
   any information about the type of packet.
 
   ## Units
   For historical reasons, APRS uses a variety of units. This module will convert all units to this
-  set of SI units
-  latitude, longitude: degrees (float)
-  distance: meters (float)
-  speed: meters per second (float)
-  temperature: degrees Celsius (float)
-  pressure: pascals (float)
-  humidity: relative percent (float)
+  set of SI units.
+
+  * latitude, longitude: degrees (float)
+  * distance: meters (float)
+  * speed: meters per second (float)
+  * temperature: degrees Celsius (float)
+  * pressure: pascals (float)
+  * humidity: relative percent (float)
 
   ## Time handling
   Some, but not all, APRS packet formats contain timestamps. However all of the formats give only partial time information.
   One of the most common formats, for example, provides the day, hour, and minutes of transmission. It is the receiver's
   responsibility to provide the year and month. This can introduce incorrect interpretation of the time, especially if the
   time between transmission and parsing of the data is long. This module does not attempt to interpret the time, but
-  simply returns the time information that is in the packet. Note that most, but not all, time stamp formats are Zulu Time.
+  simply returns the time information that is in the packet. Note that most, but not all, timestamp formats are Zulu Time.
+
+  ## Caution on binary data
+  Many of the fields described below are returned as binaries taken directly from the APRS packet. These binaries are not
+  necessarily valid UTF-8 strings. In fact, it is common for APRS packets to contain non-printable characters, and non-UTF-8.
+  If you attempt to use these for in an `iolist` for example, make sure you are prepared to handle non-UTF-8 binaries that
+  fail `String.valid?/1`.
 
   ## Unsupported APRS Features
+
+  Data Type Identifiers which *are* supported (others will return `{:error, ...}` tuples).
+  ``["!",  "=", "@", "/", "'", "`", <<\\x1c>>, <<\\x1d>>, ">", ":", "T", ";", ")", "$", "_" ]``
+
+  This module does not support the "!DAO!" construct in the Mic-E format.
+
 
   """
   defstruct raw: nil,
@@ -84,40 +97,99 @@ defmodule APRSUtils.AprsParser do
 
   ## Args
 
-  - 'model' - The APRS packet to parse. Note that this is a binary, but is not necessarily a
+  - `aprs_packet` - The APRS packet to parse. Note that this is a binary, but is not necessarily a
   valid String. APRS packets can, and regularly do, contain non-printable characters, and non-UTF-8 sequences.
 
-  ## Returns
-   {:ok, %APRSUtils.AprsParser{}}
+  ## Successful Returns
+   `{:ok, %APRSUtils.AprsParser{}}`
+
    If an :ok is returned, the APRS packet has been successfully parsed into a struct. The struct contains the
    decoded components of the APRS packet. If the field of the struct is nil, then the packet did not contain
    that information.
 
    Here is how to interpret each field of the struct:
-  raw: nil,
-            to: nil,
-            from: nil,
-            path: [],
-            timestamp: nil,
-            symbol: nil,
-            position: nil,
-            course: nil,
-            antenna: nil,
-            weather: nil,
-            telemetry: nil,
-            message: nil,
-            status: nil,
-            device: nil,
-            object: nil,
-            item: nil,
-            raw_gps: nil,
-            comment: nil
+
+  | Field | Description |
+  | ----- | ----------- |
+  | `:raw` | The same binary passed in to the parse function. |
+  | `:to` | A binary containing callsign of the station from which the packet is sent. |
+  | `:from` | A binary often containing callsign of the station to which the packet is sent. Or, this can be used to encode other information found in the packet. |
+  | `:path` | A list of binaries containing the callsigns of the digipeaters or other gateways that the packet has passed through. |
+  | `:timestamp` | A map containting a set of the following fields: `:month`, `:day`, `:hour`, `:minute`, `:second`, and `timezone`. The fields are all integers, except for `:timezone`, which is either `:zulu` or `:local_to_sender`. |
+  | `:symbol` | A two byte binary containing the symbol table and symbol represented in the packet. If you want to extract the bytes you can match `<<symbol_table::binary-size(1), symbol::binary-size(1)>>` |
+  | `:position` | See table below |
+  | `:course` | See table below |
+  | `:antenna` | See table below |
+  | `:weather` | See table below |
+  | `:telemetry` | A map containing `:sequence_counter`, `:values`, and `:bits`. `:sequence_counter` is an integer used to order telemetry reports. `:values` and `:bits` are lists. The former contains numeric values, and the later is a sequence of either `1` or `0`. |
+  | `:message` | Certain APRS packets are meant to be messages to a specific destination. In this case a message map is returned with the following fields: `:addressee`, `:message`, `:message_no` (which may be missing). `:message` is a textual message. `:message_no` is an integer message sequencer. |
+  | `:status` | A binary which is the text from a packet containing a status report. Note, this is distinct from a message or a comment. |
+  | `:device` | A binary containing the name of the sending device. This implementation is a bit weak in this area. |
+  | `:object` | A map which define's an object which has the fields `:name` and `:state`. `:name` is a binary identifier, and `:state` is either `:killed` or `:alive`. |
+  | `:item` | An item is just like an object (above) except that semantically it represents an inanimate thing that are occasionally posted on a map (e.g. marathon checkpoints or first-aid posts). |
+  | `:raw_gps` | A binary. A packet can contain the raw GPS information in one of the popular GPS device formats, like an NMEA sentence. |
+  | `:comment` | A binary comment on the packet. |
 
 
-  ## Errors
-  {:error, Map.t()}
+  | Position | |
+  | -------- | ----------- |
+  | `:latitude` | A tuple in the form `{degrees, precision}` where `degrees` is a float, and `precision` is one of `:hundredth_minute`, `:tenth_minute`, `:minute`, `:tenth_degree`, or `:degree` giving the approximate precision. |
+  | `:longitude` | A tuple in the form `{degrees, precision}` where `degrees` is a float, and `precision` is one of `:hundredth_minute`, `:tenth_minute`, `:minute`, `:tenth_degree`, or `:degree` giving the approximate precision. |
+  | `:maidenhead` | A string like `IO91SX`. This is given instead of latitude and longitude, but is considered obsolete. |
+  | `:altitude` | A floating point number in meters. |
+
+  | Course | |
+  | ------ | ----------- |
+  | `:direction` | A float in degrees. |
+  | `:speed` | A float in meters per second. |
+  | `:bearing` | A float in degrees. |
+  | `:range` | A float in meters. |
+  | `:report_quality` | An integer from 0 to 8 with 8 being the best, or `:manual`. |
+  | `:bearing_accuracy` | An integer from 1 to 9 with 9 being the best, or `:useless`. See Chapter 7 of the APRS Spec. if you want to understand report quality and bearing accuracy better. |
+
+  | Antenna | |
+  | ------ | ----------- |
+  | `:power` | A float in Watts. |
+  | `:strength` | An integer in S-points from 0 to 9. |
+  | `:height` | A float in meters. |
+  | `:directivity` | A float in degrees, or `:omnidirectional`. |
+
+  | Weather | |
+  | ------ | ----------- |
+  | `:temperature` | A float in degrees Celsius. |
+  | `:wind_speed` | A float in meters per second. |
+  | `:wind_direction` | A float in degrees. |
+  | `:gust_speed` | A float in meters per second. |
+  | `:barometric_pressure` | A float in pascals. |
+  | `:humidity` | A float in percent. |
+  | `:rainfall_last_hour` | A float in meters. |
+  | `:rainfall_last_24_hours` | A float in meters. |
+  | `:rainfall_since_midnight` | A float in meters. |
+  | `:rain_counts` | A float in counts. |
+  | `:luminosity` | A float in watts per square meter. |
+  | `:snow_fall` | A float in meters. |
+  | `:water_height` | A float in meters. |
+  | `:peak_wind_gust` | A float in meters per second. |
+  | `:hurricane_winds_radius` | A float in meters. |
+  | `:tropical_storm_winds_radius` | A float in meters. |
+  | `:gale_force_winds_radius` | A float in meters. |
+  | `:software_type` | A binary. Together with `:wx_unit` are meant to describe the weather device reporting. This isn't robustly handled. |
+  | `:wx_unit` | A binary. |
+
+  ## Error Returns
+
+  `{:error, Map.t()}`
+
+  | Field |  |
+  | ----- | ----------- |
+  | `:raw` | The same binary passed in to the parse function. |
+  | `:error` | A binary describing the error. |
+  | `:near_character_position` | An integer indicating the position in the binary where the error was detected. |
+
+  Note that for many type of errors `:near_character_position` will be nil.
+
   """
-  @spec parse(binary) :: {:ok, %__MODULE__{}} | {:error, Map.t()}
+
   def parse(aprs_packet) when is_binary(aprs_packet) do
     try do
       {%__MODULE__{}, aprs_packet}
@@ -134,7 +206,7 @@ defmodule APRSUtils.AprsParser do
       |> validate_strings()
       |> then(&{:ok, elem(&1, 0)})
     catch
-      {{aprs, msg}, error_string} -> {:error, throw_to_error_return({aprs, msg}, error_string)}
+      {msg, error_string} -> {:error, throw_to_error_return(aprs_packet, msg, error_string)}
     end
   end
 
@@ -167,7 +239,7 @@ defmodule APRSUtils.AprsParser do
         {add_info(aprs, from: from), rest}
 
       _ ->
-        throw({{aprs, msg}, "Could not match the FROM"})
+        throw({msg, "Could not parse the FROM"})
     end
   end
 
@@ -177,7 +249,7 @@ defmodule APRSUtils.AprsParser do
         {add_info(aprs, to: to), separator <> rest}
 
       _ ->
-        throw({{aprs, msg}, "Could not match the TO"})
+        throw({msg, "Could not parse the TO"})
     end
   end
 
@@ -194,11 +266,11 @@ defmodule APRSUtils.AprsParser do
         {add_info(aprs, path: path), rest}
 
       _ ->
-        throw({{aprs, msg}, "Could not parse the PATH"})
+        throw({msg, "Could not parse the PATH"})
     end
   end
 
-  defp get_paths(p), do: throw({p, "Could not parse the PATH"})
+  defp get_paths({_, msg}), do: throw({msg, "Could not parse the PATH"})
 
   # These are the Q constructs that are generated by the server and are not part of the APRS spec
   # https://www.aprs-is.net/q.aspx
@@ -220,7 +292,7 @@ defmodule APRSUtils.AprsParser do
     parse_w_data_identifier({aprs, msg}, data_identifier)
   end
 
-  defp parse_information_field(p), do: throw({p, "No Data Identifier found"})
+  defp parse_information_field({_, msg}), do: throw({msg, "No Data Identifier found"})
 
   # Position Reports - Without timestamp (Chapter 8 page 32 of http://www.aprs.org/doc/APRS101.PDF)
   defp parse_w_data_identifier(
@@ -249,7 +321,7 @@ defmodule APRSUtils.AprsParser do
       {add_info(aprs, timestamp: parse_timestamp(time, time_indicator)), rest}
       |> parse_w_data_identifier("!")
     else
-      throw({{aprs, msg}, "Timestamp contains non-digit characters: #{time}"})
+      throw({msg, "Timestamp contains non-digit characters: #{time}"})
     end
   end
 
@@ -298,9 +370,7 @@ defmodule APRSUtils.AprsParser do
              :killed
 
            _ ->
-             throw(
-               {{aprs, msg}, "Object state indicator not recognized: #{object_state_indicator}"}
-             )
+             throw({msg, "Object state indicator not recognized: #{object_state_indicator}"})
          end
      }), rest}
     |> parse_w_data_identifier("@")
@@ -325,7 +395,7 @@ defmodule APRSUtils.AprsParser do
         |> parse_w_data_identifier("!")
 
       _ ->
-        throw({{aprs, msg}, "Could not parse the item format: #{msg}"})
+        throw({msg, "Could not parse the item format: #{msg}"})
     end
   end
 
@@ -341,15 +411,15 @@ defmodule APRSUtils.AprsParser do
     |> extract_comment()
   end
 
-  defp parse_w_data_identifier(p, data_identifier)
+  defp parse_w_data_identifier({_, msg}, data_identifier)
        when data_identifier in ["#", "%", "(", "*", ",", "-", "<", "?", "["] do
-    throw({p, "Unimplemented APRS Data Type Identifier: #{data_identifier}"})
+    throw({msg, "Unimplemented APRS Data Type Identifier: #{data_identifier}"})
   end
 
   # APRS Data Identifier not recognized
-  defp parse_w_data_identifier(p, data_identifier) do
+  defp parse_w_data_identifier({_, msg}, data_identifier) do
     throw(
-      {p,
+      {msg,
        "APRS Data Type Identifier is not in the spec. or is unused or reserved: #{data_identifier}"}
     )
   end
@@ -369,7 +439,7 @@ defmodule APRSUtils.AprsParser do
     validate_string(aprs_map, [:device], "Device")
 
     if not Enum.all?(aprs.path, &String.valid?/1) do
-      throw({{nil, nil}, "A Path component is not a valid string"})
+      throw({nil, "A Path component is not a valid string"})
     end
 
     {aprs, msg}
@@ -381,9 +451,7 @@ defmodule APRSUtils.AprsParser do
         if String.valid?(str) do
           :ok
         else
-          throw(
-            {{nil, nil}, "#{name_of_field} is not a valid string: #{String.replace_invalid(str)}"}
-          )
+          throw({nil, "#{name_of_field} is not a valid string: #{String.replace_invalid(str)}"})
         end
 
       _ ->
@@ -425,7 +493,7 @@ defmodule APRSUtils.AprsParser do
     {aprs, rest} |> add_telemetry_report(sequence_no)
   end
 
-  defp parse_telemetry_report(arg), do: throw({arg, "Badly formatted telemetry report"})
+  defp parse_telemetry_report({_, msg}), do: throw({msg, "Badly formatted telemetry report"})
 
   defp add_telemetry_report({aprs, msg}, sequence_no) do
     {telemetry, rest} =
@@ -435,7 +503,7 @@ defmodule APRSUtils.AprsParser do
       {Enum.take(telemetry, min(5, Enum.count(telemetry) - 1)), List.last(telemetry)}
 
     if not Enum.all?(String.codepoints(digital_value), &(&1 in ["0", "1"])) do
-      throw({{aprs, msg}, "Digital value must be a string of 0's and 1's"})
+      throw({msg, "Digital value must be a string of 0's and 1's"})
     end
 
     telemetry_struct = %{
@@ -491,7 +559,8 @@ defmodule APRSUtils.AprsParser do
     end
   end
 
-  defp parse_message(p), do: throw({p, "Addressee must be 9 characters followed by a ':'"})
+  defp parse_message({_, msg}),
+    do: throw({msg, "Addressee must be 9 characters followed by a ':'"})
 
   # Message to the originator may be a telemetry definition message
   # Chapter 13 page 68 of http://www.aprs.org/doc/APRS101.PDF
@@ -535,7 +604,7 @@ defmodule APRSUtils.AprsParser do
          ), ""}
 
       _ ->
-        throw({{aprs, msg}, "Badly formatted BITS message"})
+        throw({msg, "Badly formatted BITS message"})
     end
   end
 
@@ -731,11 +800,11 @@ defmodule APRSUtils.AprsParser do
             se::binary-size(1), symbol_code::binary-size(1), sym_table_id::binary-size(1),
             rest::binary>> = _msg}
        ) do
-    {lat, long, speed, direction, mic_e_message} =
+    {lat, long, speed, direction, mic_e_status} =
       parse_mic_e(aprs.to, long_degrees, long_minutes, long_hundredths, sp, dc, se)
 
     {aprs
-     |> add_info(message: mic_e_message)
+     |> add_info(status: mic_e_status)
      |> add_info(:position, %{
        latitude: {lat, :hundredth_minute},
        longitude: {long, :hundredth_minute}
@@ -780,7 +849,7 @@ defmodule APRSUtils.AprsParser do
     "Z" => %{lat: 0, bit: 1, custom?: false, n_s: :north, long_offset: 100, w_e: :west}
   }
 
-  @mic_e_msgs %{
+  @mic_e_statuses %{
     {:std, 0} => "Off Duty",
     {:std, 1} => "En Route",
     {:std, 2} => "In Service",
@@ -820,25 +889,20 @@ defmodule APRSUtils.AprsParser do
     dec6 = Map.get(@mic_e_byte_decode_table, b6)
 
     if dec1 == nil or dec2 == nil or dec3 == nil or dec4 == nil or dec5 == nil or dec6 == nil do
-      throw({{nil, nil}, "Invalid Mic-E destination address #{b1 <> b2 <> b3 <> b4 <> b5 <> b6}"})
+      throw({nil, "Invalid Mic-E destination address #{b1 <> b2 <> b3 <> b4 <> b5 <> b6}"})
     end
 
     if not Map.has_key?(dec4, :n_s) do
-      throw(
-        {{nil, nil}, "Invalid Mic-E destination 4th byte, must indicate N/S direction got: #{b4}"}
-      )
+      throw({nil, "Invalid Mic-E destination 4th byte, must indicate N/S direction got: #{b4}"})
     end
 
     if not Map.has_key?(dec6, :w_e) do
-      throw(
-        {{nil, nil}, "Invalid Mic-E destination 6th byte, must indicate E/W direction got: #{b6}"}
-      )
+      throw({nil, "Invalid Mic-E destination 6th byte, must indicate E/W direction got: #{b6}"})
     end
 
     if not Map.has_key?(dec5, :long_offset) do
       throw(
-        {{nil, nil},
-         "Invalid Mic-E destination 5th byte, must indicate longitude offset got: #{b5}"}
+        {nil, "Invalid Mic-E destination 5th byte, must indicate longitude offset got: #{b5}"}
       )
     end
 
@@ -855,7 +919,7 @@ defmodule APRSUtils.AprsParser do
           lat
 
         _ ->
-          throw({{nil, nil}, "Invalid Mic-E destination 4th byte, must indicate N/S direction"})
+          throw({nil, "Invalid Mic-E destination 4th byte, must indicate N/S direction"})
       end
 
     long_degrees = byte_val(long_degrees) - 28 + dec5.long_offset
@@ -887,12 +951,12 @@ defmodule APRSUtils.AprsParser do
           long
 
         _ ->
-          throw({{nil, nil}, "Invalid Mic-E destination 6th byte, must indicate E/W direction"})
+          throw({nil, "Invalid Mic-E destination 6th byte, must indicate E/W direction"})
       end
 
-    msg_number = dec1.bit * 4 + dec2.bit * 2 + dec3.bit
+    status_number = dec1.bit * 4 + dec2.bit * 2 + dec3.bit
 
-    msg_type =
+    status_type =
       case {dec1.custom?, dec2.custom?, dec3.custom?} do
         {true, true, true} -> :custom
         {false, false, false} -> :std
@@ -900,7 +964,7 @@ defmodule APRSUtils.AprsParser do
         _ -> :unknown
       end
 
-    msg = Map.get(@mic_e_msgs, {msg_type, msg_number}, "Unknown")
+    status = Map.get(@mic_e_statuses, {status_type, status_number}, "Unknown")
 
     dc = byte_val(dc) - 28
 
@@ -913,7 +977,7 @@ defmodule APRSUtils.AprsParser do
     direction = rem(dc, 10) * 100 + byte_val(se) - 28
     direction = 1.0 * if direction >= 400, do: direction - 400, else: direction
 
-    {lat, long, speed, direction, msg}
+    {lat, long, speed, direction, status}
   end
 
   defp parse_mic_e(
@@ -925,7 +989,7 @@ defmodule APRSUtils.AprsParser do
          _,
          _
        ) do
-    throw({{nil, nil}, "Invalid Mic-E destination address #{to}, must be 6 bytes long"})
+    throw({nil, "Invalid Mic-E destination address #{to}, must be 6 bytes long"})
   end
 
   defp parse_position_uncompressed(
@@ -940,7 +1004,8 @@ defmodule APRSUtils.AprsParser do
      |> add_info(symbol: sym_table_id <> symbol_code), rest}
   end
 
-  defp parse_position_uncompressed(p), do: throw({p, "Badly formatted uncompressed position"})
+  defp parse_position_uncompressed({_, msg}),
+    do: throw({msg, "Badly formatted uncompressed position"})
 
   defp parse_position_compressed(
          {aprs,
@@ -960,7 +1025,8 @@ defmodule APRSUtils.AprsParser do
      |> parse_cs(cs, comp_type), rest}
   end
 
-  defp parse_position_compressed(p), do: throw({p, "Badly formatted compressed information"})
+  defp parse_position_compressed({_, msg}),
+    do: throw({msg, "Badly formatted compressed information"})
 
   defp uncompress_lat(lat) do
     {90.0 - decode_base91_ascii_string(lat) / 380_926.0, :hundredth_minute}
@@ -1350,7 +1416,7 @@ defmodule APRSUtils.AprsParser do
            "7" -> 49.0
            "8" -> 64.0
            "9" -> 81.0
-           _ -> throw({{aprs, msg}, "power_code #{power_code} unknown"})
+           _ -> throw({msg, "power_code #{power_code} unknown"})
          end
      }), msg}
     |> add_hgd_to_report(height_code, gain_code, directivity_code)
@@ -1392,7 +1458,7 @@ defmodule APRSUtils.AprsParser do
            "@" -> 163_840.0 * 4.0
            "A" -> 163_840.0 * 8.0
            "B" -> 163_840.0 * 16.0
-           _ -> throw({{aprs, msg}, "Height code #{height_code} unknown"})
+           _ -> throw({msg, "Height code #{height_code} unknown"})
          end * @meters_per_foot,
        gain: to_float(gain_code),
        directivity:
@@ -1407,7 +1473,7 @@ defmodule APRSUtils.AprsParser do
            "6" -> 270.0
            "7" -> 315.0
            "8" -> 360.0
-           _ -> throw({{aprs, msg}, "Directivity code #{directivity_code} unknown"})
+           _ -> throw({msg, "Directivity code #{directivity_code} unknown"})
          end
      }), msg}
   end
@@ -1510,7 +1576,7 @@ defmodule APRSUtils.AprsParser do
           [<<_::binary-size(5)>> = l, _] -> {l <> "00", :minute}
           [<<_::binary-size(6)>> = l, _] -> {l <> "0", :tenth_minute}
           [_] -> {lat, :hundredth_minute}
-          _ -> throw({{nil, nil}, "Could not parse latitude #{lat}"})
+          _ -> throw({nil, "Could not parse latitude #{lat}"})
         end
 
       latitude =
@@ -1518,7 +1584,7 @@ defmodule APRSUtils.AprsParser do
           to_float(String.trim(degrees)) + to_float(String.trim(minutes)) / 60.0
         rescue
           _ ->
-            throw({{nil, nil}, "Could not parse latitude #{lat}"})
+            throw({nil, "Could not parse latitude #{lat}"})
         end
 
       latitude =
@@ -1527,12 +1593,12 @@ defmodule APRSUtils.AprsParser do
           "n" -> latitude
           "S" -> -latitude
           "s" -> -latitude
-          _ -> throw({{nil, nil}, "Could not parse latitude direction #{direction}"})
+          _ -> throw({nil, "Could not parse latitude direction #{direction}"})
         end
 
       {latitude, precision}
     else
-      throw({{nil, nil}, "Could not parse latitude #{lat}"})
+      throw({nil, "Could not parse latitude #{lat}"})
     end
   end
 
@@ -1547,7 +1613,7 @@ defmodule APRSUtils.AprsParser do
           [<<_::binary-size(6)>> = l, _] -> {l <> "00", :minute}
           [<<_::binary-size(7)>> = l, _] -> {l <> "0", :tenth_minute}
           [_] -> {long, :hundredth_minute}
-          _ -> throw({{nil, nil}, "Could not parse longitude #{long}"})
+          _ -> throw({nil, "Could not parse longitude #{long}"})
         end
 
       longitude =
@@ -1555,7 +1621,7 @@ defmodule APRSUtils.AprsParser do
           to_float(String.trim(degrees)) + to_float(String.trim(minutes)) / 60.0
         rescue
           _ ->
-            throw({{nil, nil}, "Could not parse longitude #{long}"})
+            throw({nil, "Could not parse longitude #{long}"})
         end
 
       longitude =
@@ -1564,12 +1630,12 @@ defmodule APRSUtils.AprsParser do
           "e" -> longitude
           "W" -> -longitude
           "w" -> -longitude
-          _ -> throw({{nil, nil}, "Could not parse longitude direction #{direction}"})
+          _ -> throw({nil, "Could not parse longitude direction #{direction}"})
         end
 
       {longitude, precision}
     else
-      throw({{nil, nil}, "Could not parse longitude #{long}"})
+      throw({nil, "Could not parse longitude #{long}"})
     end
   end
 
@@ -1688,7 +1754,7 @@ defmodule APRSUtils.AprsParser do
   defp to_float(str) do
     case Float.parse(str) do
       t when is_tuple(t) -> elem(t, 0)
-      _ -> throw({{nil, nil}, "Could not parse float from #{str}"})
+      _ -> throw({nil, "Could not parse float from #{str}"})
     end
   end
 
@@ -1696,19 +1762,19 @@ defmodule APRSUtils.AprsParser do
     :erlang.binary_to_list(str) |> List.first()
   end
 
-  defp throw_to_error_return({nil, nil}, error_message) do
+  defp throw_to_error_return(raw, nil, error_message) do
     %{
-      raw: "",
+      raw: raw,
       error_message: error_message,
       near_character_position: 0
     }
   end
 
-  defp throw_to_error_return({aprs, msg_left}, error_message) do
+  defp throw_to_error_return(raw, msg_left, error_message) do
     %{
-      raw: aprs.raw,
+      raw: raw,
       error_message: error_message,
-      near_character_position: String.length(aprs.raw) - String.length(msg_left) - 1
+      near_character_position: String.length(raw) - String.length(msg_left) - 1
     }
   end
 

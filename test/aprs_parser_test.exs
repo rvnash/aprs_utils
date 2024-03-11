@@ -332,7 +332,7 @@ defmodule AprsParserTest do
                  altitude: 61.0
                },
                telemetry: %{sequence_counter: 7, values: [495, 629]},
-               message: "Committed",
+               status: "Committed",
                device: "Byonics TinyTrack3"
              } == expected_result
     end
@@ -361,7 +361,7 @@ defmodule AprsParserTest do
                  longitude: {-79.82083333333334, :hundredth_minute},
                  altitude: 281.0
                },
-               message: "Special",
+               status: "Special",
                telemetry: %{sequence_counter: 5, values: [493, 627]},
                comment: "MT-RTG 50"
              } == expected_result
@@ -385,7 +385,7 @@ defmodule AprsParserTest do
                  altitude: 8.0
                },
                device: "Yaesu VX-8",
-               message: "Emergency"
+               status: "Emergency"
              } == expected_result
     end
 
@@ -1304,7 +1304,7 @@ defmodule AprsParserTest do
                to: "TW1VU8-2",
                path: ["WIDE1-1", "WIDE2-1", "qAR", "OE9IMJ-10"],
                comment: "mou CT3863 S6 11.3C  959hPa 3.4V",
-               message: "Priority",
+               status: "Priority",
                symbol: "//",
                course: %{direction: 339.0, speed: 0.0},
                position: %{
@@ -1414,7 +1414,7 @@ defmodule AprsParserTest do
                  from: "DL9OBG-9",
                  to: "UR5RW7",
                  path: ["WIDE1-1", "WIDE2-2", "qAU", "DL9OBG-11"],
-                 message: "Priority",
+                 status: "Priority",
                  device: m.device,
                  symbol: "/>",
                  course: %{direction: 70.0, speed: 19.034428000000002},
@@ -1565,7 +1565,7 @@ defmodule AprsParserTest do
                from: "IW3SRV-5",
                to: "T5TV82",
                path: ["S53UAN-10*", "WIDE1*", "WIDE2-1", "qAR", "S58W-10"],
-               message: "Special",
+               status: "Special",
                symbol: "/s",
                course: %{direction: 0.0, speed: 0.0},
                device: "Kenwood TH-D7A",
@@ -1887,7 +1887,7 @@ defmodule AprsParserTest do
              from: "2E1GRY-9",
              to: "UQTXYS",
              path: ["WIDE1-1", "qAR", "M1DYP"],
-             message: "Emergency",
+             status: "Emergency",
              comment: "Hello 3.92V  24.6C X",
              course: %{direction: 187.0, speed: 1.543332},
              position: %{
@@ -1913,7 +1913,7 @@ defmodule AprsParserTest do
              to: "T3STVQ",
              path: ["WAREAG", "WIDE1*", "WIDE2-1", "qAR", "KK7NWN-1"],
              device: "Byonics TinyTrack3",
-             message: "Special",
+             status: "Special",
              course: %{direction: 30.0, speed: 0.0},
              position: %{
                latitude: {43.57683333333333, :hundredth_minute},
@@ -1967,7 +1967,7 @@ defmodule AprsParserTest do
                "qAR",
                "OZ7GZ"
              ],
-             message: "Special",
+             status: "Special",
              comment: "1c>n>PACKET BBS I ODENSE",
              course: %{speed: 0.0, direction: 32.0},
              position: %{
