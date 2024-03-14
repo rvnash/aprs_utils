@@ -1032,7 +1032,7 @@ defmodule AprsParserTest do
                )
     end
 
-    test "Live test 37: Crash in timestamp" do
+    test "Bad character in timestamp" do
       assert {:error, _reason} =
                AprsParser.parse(
                  "KC5TIL-3>APTW01,K5FTW-5,WIDE1,W5NGU-3*,qAR,AC5V:_031513,3c198s007g015t080r000p000P000h33b10038tRSW"
