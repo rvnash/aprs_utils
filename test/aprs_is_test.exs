@@ -1,25 +1,85 @@
-defmodule Balloons.Utils.AprsIsTest do
+defmodule Utils.AprsIsTest do
   use ExUnit.Case
   alias APRSUtils.AprsIs
   alias APRSUtils.AprsParser
 
-  @tag timeout: :infinity
-  test "start_link/1 starts the GenServer" do
+  test "Can connect and unconnect" do
+    # user TESTER pass 12705 Balloons 0.1 filter t/poimqstunw
     {:ok, pid} =
-      AprsIs.start_link(
-        host: "rotate.aprs.net",
-        port: 14580,
-        username: "KC3ARY",
-        password: "22969",
+      AprsIs.connect(
+        username: "TESTER",
+        password: "12705",
         app_name: "Balloons",
         app_version: "0.1",
-        filter: "t/poimqstunw",
         client_module: Client
       )
 
-    assert is_pid(pid)
+    assert AprsIs.is_connected?(pid)
 
-    Process.sleep(5_000_000)
+    AprsIs.close(pid)
+    refute AprsIs.is_connected?(pid)
+  end
+
+  @tag timeout: :infinity
+  test "Open a connection and process live data for a few a while" do
+    # Note this test just runs for a while printing out bad packets
+    # and then stops. Feel free to disable it.
+    {:ok, pid} =
+      AprsIs.connect(
+        username: "TESTER",
+        password: "12705",
+        app_name: "Balloons",
+        app_version: "0.1",
+        client_module: Client
+      )
+
+    assert AprsIs.is_connected?(pid)
+    Process.sleep(60_000)
+  end
+
+  test "connect fails bad user name." do
+    {:error, _reason} =
+      AprsIs.connect(
+        username: "TEST",
+        password: "12705",
+        app_name: "Balloons",
+        app_version: "0.1"
+      )
+  end
+
+  test "connect fails bad host" do
+    {:error, _reason} =
+      AprsIs.connect(
+        host: "foo.foo.foo",
+        username: "TESTER",
+        password: "12705",
+        app_name: "Balloons",
+        app_version: "0.1",
+        client_module: Client
+      )
+  end
+
+  test "connect fails host not running service" do
+    {:error, _reason} =
+      AprsIs.connect(
+        host: "www.apple.com",
+        username: "TESTER",
+        password: "12705",
+        app_name: "Balloons",
+        app_version: "0.1",
+        client_module: Client
+      )
+  end
+
+  test "connect fails bad password" do
+    {:error, _reason} =
+      AprsIs.connect(
+        username: "TESTER",
+        password: "12704",
+        app_name: "Balloons",
+        app_version: "0.1",
+        client_module: Client
+      )
   end
 end
 
@@ -51,7 +111,6 @@ defmodule Client do
         reraise e, __STACKTRACE__
     end
 
-    # IO.puts(inspect(AprsParser.parse(packet), label: "Packet", pretty: true))
     :ok
   end
 
@@ -70,18 +129,9 @@ defmodule Client do
     :ok
   end
 
-  def got_error(reason) do
-    IO.puts("Got error: #{reason}")
-    :ok
-  end
+  def disconnected(reason) do
+    IO.puts("Disconnected: #{reason}")
 
-  def connected(server_version) do
-    IO.puts("Connected to server: #{server_version}")
-    :ok
-  end
-
-  def disconnected do
-    IO.puts("Disconnected")
     :ok
   end
 end

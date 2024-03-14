@@ -13,7 +13,7 @@ defmodule AprsUtils.MixProject do
       source_url: "https://github.com/rvnash/aprs_utils",
       docs: [
         # The main page in the docs
-        main: "MyApp",
+        main: "APRSUtils",
         extras: ["README.md"]
       ]
     ]

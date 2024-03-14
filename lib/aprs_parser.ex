@@ -709,7 +709,7 @@ defmodule APRSUtils.AprsParser do
     end
   end
 
-  defp extract_mic_e_device({aprs, <<"]", rest::binary>> = _msg}) do
+  defp extract_mic_e_device({aprs, <<"]", rest::binary>> = _msg}) when rest != "" do
     case String.last(rest) do
       "=" ->
         {add_info(aprs, device: "Kenwood TM-D710"),
@@ -1646,7 +1646,8 @@ defmodule APRSUtils.AprsParser do
          <<day::binary-size(2), hour::binary-size(2), minute::binary-size(2)>>,
          time_indicator
        )
-       when time_indicator in ["/"] do
+       when time_indicator in ["/"] and is_all_digits(day) and is_all_digits(hour) and
+              is_all_digits(minute) do
     %{
       day: String.to_integer(day),
       hour: String.to_integer(hour),
@@ -1660,7 +1661,8 @@ defmodule APRSUtils.AprsParser do
          <<hour::binary-size(2), minute::binary-size(2), second::binary-size(2)>>,
          time_indicator
        )
-       when time_indicator in ["h"] do
+       when time_indicator in ["h"] and is_all_digits(hour) and is_all_digits(minute) and
+              is_all_digits(second) do
     %{
       hour: String.to_integer(hour),
       minute: String.to_integer(minute),
@@ -1676,7 +1678,8 @@ defmodule APRSUtils.AprsParser do
   defp parse_timestamp(
          <<day::binary-size(2), hour::binary-size(2), minute::binary-size(2)>>,
          _time_indicator
-       ) do
+       )
+       when is_all_digits(day) and is_all_digits(hour) and is_all_digits(minute) do
     %{
       day: String.to_integer(day),
       hour: String.to_integer(hour),
@@ -1685,11 +1688,16 @@ defmodule APRSUtils.AprsParser do
     }
   end
 
+  defp parse_timestamp(timestamp, _time_indicator),
+    do: throw({nil, "Could not parse 'dhm' timestamp #{timestamp}"})
+
   # MDHM - Zulu time w/o a time indicator (from Positionless Weather Report)
   defp parse_timestamp_mdhm(
          <<month::binary-size(2), day::binary-size(2), hour::binary-size(2),
            minute::binary-size(2)>>
-       ) do
+       )
+       when is_all_digits(month) and is_all_digits(day) and is_all_digits(hour) and
+              is_all_digits(minute) do
     %{
       month: String.to_integer(month),
       day: String.to_integer(day),
@@ -1698,6 +1706,9 @@ defmodule APRSUtils.AprsParser do
       time_zone: :utc
     }
   end
+
+  defp parse_timestamp_mdhm(timestamp),
+    do: throw({nil, "Could not parse 'mdhm' timestamp #{timestamp}"})
 
   defp add_info(%__MODULE__{} = aprs, opts) when is_list(opts) do
     Enum.reduce(opts, aprs, fn {key, value}, acc ->

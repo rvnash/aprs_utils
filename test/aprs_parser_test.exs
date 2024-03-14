@@ -1031,6 +1031,13 @@ defmodule AprsParserTest do
                  "NS8C-6>APRX29,TCPIP*,qAS,NS8C-1:T#123456,0.0,0.0,0.0,0.0,0.0,00000000"
                )
     end
+
+    test "Live test 37: Crash in timestamp" do
+      assert {:error, _reason} =
+               AprsParser.parse(
+                 "KC5TIL-3>APTW01,K5FTW-5,WIDE1,W5NGU-3*,qAR,AC5V:_031513,3c198s007g015t080r000p000P000h33b10038tRSW"
+               )
+    end
   end
 
   describe "Tests of real packets picked up from APRS-IS which caused crashes" do
@@ -1975,6 +1982,34 @@ defmodule AprsParserTest do
                longitude: {10.428166666666666, :hundredth_minute}
              },
              symbol: "x0"
+           } == expected_result
+  end
+
+  # ---------------------------------------------------------------
+  # Info I have:
+  # Committed
+  # Location:	42°30.00' N 122°30.00' W - locator CN82SM00AA - show map
+  # Position ambiguous:	Precision reduced at transmitter by 4 digits, position resolution approximately 69.0 miles.
+  # Course:	0°
+  # Speed:	0 MPH
+  # Device:	Kenwood: TM-D700 (rig)
+  test "Live test 36: Caused crash in extracting mic-e device" do
+    assert {:ok, expected_result} =
+             AprsParser.parse("KE6CAC-1>4RZZZZ,WIDE1-1,WIDE2-2,qAR,W7VW-1:'2*~l \x1cK\\]")
+
+    assert %AprsParser{
+             raw: "KE6CAC-1>4RZZZZ,WIDE1-1,WIDE2-2,qAR,W7VW-1:'2*~l \x1CK\\]",
+             from: "KE6CAC-1",
+             to: "4RZZZZ",
+             path: ["WIDE1-1", "WIDE2-2", "qAR", "W7VW-1"],
+             comment: "]",
+             course: %{direction: 0.0, speed: 0.0},
+             position: %{
+               latitude: {42.0, :hundredth_minute},
+               longitude: {-122.24966666666667, :hundredth_minute}
+             },
+             status: "Returning",
+             symbol: "\\K"
            } == expected_result
   end
 end
