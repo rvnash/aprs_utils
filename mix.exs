@@ -18,8 +18,7 @@ defmodule AprsUtils.MixProject do
       ],
       package: [
         name: "aprs_utils",
-        files: ~w(lib .formatter.exs mix.exs README* readme* LICENSE*
-                license* CHANGELOG* changelog* src),
+        files: ~w(lib .formatter.exs mix.exs README.md LICENSE),
         licenses: ["MIT"],
         links: %{"GitHub" => "https://github.com/rvnash/aprs_utils"}
       ]
