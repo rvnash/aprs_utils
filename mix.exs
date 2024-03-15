@@ -6,15 +6,22 @@ defmodule AprsUtils.MixProject do
       app: :aprs_utils,
       version: "0.1.0",
       elixir: "~> 1.16",
+      description: "APRS Utilities",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       # Docs
-      name: "APRSUtils",
+      name: "AprsUtils",
       source_url: "https://github.com/rvnash/aprs_utils",
       docs: [
-        # The main page in the docs
-        main: "APRSUtils",
+        main: "readme",
         extras: ["README.md"]
+      ],
+      package: [
+        name: "aprs_utils",
+        files: ~w(lib .formatter.exs mix.exs README* readme* LICENSE*
+                license* CHANGELOG* changelog* src),
+        licenses: ["MIT"],
+        links: %{"GitHub" => "https://github.com/rvnash/aprs_utils"}
       ]
     ]
   end

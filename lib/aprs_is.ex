@@ -1,26 +1,25 @@
-defmodule APRSUtils.AprsIs do
+defmodule AprsUtils.AprsIs do
   @moduledoc """
   A module to connect to an APRS-IS server and listen for packets.
 
   These functions implement a client for the APRS-IS server. To use this module, you must implement a
-  client module that implements the APRSUtils.AprsIsClient behaviour. The client module will be called
+  client module that implements the AprsUtils.AprsIsClient behaviour. The client module will be called
   when packets are recieved from the APRS-IS server.
 
   ## Example
 
       defmodule Client do
-        @behaviour APRSUtilsIsClient
-        alias APRSUtils.AprsParser
+        @behaviour AprsUtils.AprsIsClient
 
-        def got_packet(_aprs_is_pid, packet, packet_count) do
+        def got_packet(packet, _packet_count) do
           IO.puts("Got packet: \#{String.replace_invalid(packet)}")
         end
 
-        def got_comment(_aprs_is_pid, comment) do
+        def got_comment(comment) do
           IO.puts("Got comment: \#{String.replace_invalid(comment)}")
         end
 
-        def disconnected(_aprs_is_pid, reason) do
+        def disconnected(reason) do
           IO.puts("Disconnected: \#{reason}")
         end
       end
@@ -50,8 +49,8 @@ defmodule APRSUtils.AprsIs do
   - :password - The password to connect to the APRS-IS server.
   - :app_name - The name of your application.
   - :app_version - The version of your application.
-  - :filter - The [filter](https://www.aprs-is.net/javAPRSFilter.aspx) to use for the APRS-IS server. Defaults to "t/poimqstunw".
-  - :client_module - The module that implements the APRSUtilsIsClient behaviour.
+  - :filter - The filter. See the docs [here](https://www.aprs-is.net/javAPRSFilter.aspx) to use for the APRS-IS server. Defaults to `"t/poimqstunw"`.
+  - :client_module - The module that implements the AprsUtilsIsClient behaviour.
 
   All of the fields are required except for `:host`, `:port`, and `:filter` which have defaults.
 
@@ -84,7 +83,7 @@ defmodule APRSUtils.AprsIs do
   end
 
   @doc """
-  Returns true if the APRS-IS server is connected, false otherwise. The `aprs_is_pid` is the pid returned by `connect`.
+  Returns `true` if the APRS-IS server is connected, `false` otherwise. The `aprs_is_pid` is the pid returned by `connect`.
   """
   def is_connected?(aprs_is_pid) do
     Process.alive?(aprs_is_pid)
@@ -195,9 +194,9 @@ defmodule APRSUtils.AprsIs do
   end
 end
 
-defmodule APRSUtilsIsClient do
+defmodule AprsUtils.AprsIsClient do
   @moduledoc """
-  Callbacks for the APRSUtils.AprsIs client module
+  Callbacks for the AprsUtils.AprsIs client module
   """
 
   @doc """

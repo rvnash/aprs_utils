@@ -1,6 +1,6 @@
 defmodule AprsParserTest do
   use ExUnit.Case
-  alias APRSUtils.AprsParser
+  alias AprsUtils.AprsParser
 
   describe "Tests trying to get best coverage of all packet types and variants" do
     # ---------------------------------------------------------------

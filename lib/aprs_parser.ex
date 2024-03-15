@@ -1,11 +1,21 @@
-defmodule APRSUtils.AprsParser do
+defmodule AprsUtils.AprsParser do
   @moduledoc """
   Module for parsing APRS packets into components.
 
   ## Philosopy
-  This module is designed to abstract as much as possible the complexity of the APRS protocol, and
-  reveal only the information contained in the packet. For example, the module will not return
-  any information about the type of packet.
+  By its own admission, the APRS protocol is complex and shows definate signs of having
+  a design which evolved and grew during it's development. This module is designed to abstract
+  as much of this away as possible. It reveals only the actual information contained in the packet,
+  and as little about the protocol as it can. For example, the module will not return any
+  information about the type of packet, or if the positional information was compressed.
+  Basically the structure that is returns contains the information the
+  packet contains, and `nil` in the information fields that the packet does not contain.
+
+  See this set of documents for the APRS protocol:
+
+  * [APRS 1.0.1 Spec](http://www.aprs.org/doc/APRS101.PDF)
+  * [APRS 1.1 Addendum](http://www.aprs.org/aprs11.html)
+  * [APRS 1.2 Addendum](http://www.aprs.org/aprs12.html)
 
   ## Units
   For historical reasons, APRS uses a variety of units. This module will convert all units to this
@@ -33,10 +43,12 @@ defmodule APRSUtils.AprsParser do
 
   ## Unsupported APRS Features
 
-  Data Type Identifiers which *are* supported (others will return `{:error, ...}` tuples).
+  This is the set of *Data Type Identifiers* which *are* supported (others will return `{:error, ...}` tuples).
   ``["!",  "=", "@", "/", "'", "`", <<\\x1c>>, <<\\x1d>>, ">", ":", "T", ";", ")", "$", "_" ]``
 
   This module does not support the "!DAO!" construct in the Mic-E format.
+
+  This module does not recognize the software/device identifiers (APxxxx) in the TO field.
 
 
   """
@@ -101,7 +113,7 @@ defmodule APRSUtils.AprsParser do
   valid String. APRS packets can, and regularly do, contain non-printable characters, and non-UTF-8 sequences.
 
   ## Successful Returns
-   `{:ok, %APRSUtils.AprsParser{}}`
+   `{:ok, %AprsUtils.AprsParser{}}`
 
    If an :ok is returned, the APRS packet has been successfully parsed into a struct. The struct contains the
    decoded components of the APRS packet. If the field of the struct is nil, then the packet did not contain
@@ -117,10 +129,10 @@ defmodule APRSUtils.AprsParser do
   | `:path` | A list of binaries containing the callsigns of the digipeaters or other gateways that the packet has passed through. |
   | `:timestamp` | A map containting a set of the following fields: `:month`, `:day`, `:hour`, `:minute`, `:second`, and `timezone`. The fields are all integers, except for `:timezone`, which is either `:zulu` or `:local_to_sender`. |
   | `:symbol` | A two byte binary containing the symbol table and symbol represented in the packet. If you want to extract the bytes you can match `<<symbol_table::binary-size(1), symbol::binary-size(1)>>` |
-  | `:position` | See table below |
-  | `:course` | See table below |
-  | `:antenna` | See table below |
-  | `:weather` | See table below |
+  | `:position` | A map, see the table below for the fields. |
+  | `:course` | A map, see the table below for the fields. |
+  | `:antenna` | A map, see the table below for the fields. |
+  | `:weather` | A map, see the table below for the fields. |
   | `:telemetry` | A map containing `:sequence_counter`, `:values`, and `:bits`. `:sequence_counter` is an integer used to order telemetry reports. `:values` and `:bits` are lists. The former contains numeric values, and the later is a sequence of either `1` or `0`. |
   | `:message` | Certain APRS packets are meant to be messages to a specific destination. In this case a message map is returned with the following fields: `:addressee`, `:message`, `:message_no` (which may be missing). `:message` is a textual message. `:message_no` is an integer message sequencer. |
   | `:status` | A binary which is the text from a packet containing a status report. Note, this is distinct from a message or a comment. |
@@ -149,14 +161,14 @@ defmodule APRSUtils.AprsParser do
 
   | Antenna | |
   | ------ | ----------- |
-  | `:power` | A float in Watts. |
+  | `:power` | A float in watts. |
   | `:strength` | An integer in S-points from 0 to 9. |
   | `:height` | A float in meters. |
   | `:directivity` | A float in degrees, or `:omnidirectional`. |
 
   | Weather | |
   | ------ | ----------- |
-  | `:temperature` | A float in degrees Celsius. |
+  | `:temperature` | A float in degrees celsius. |
   | `:wind_speed` | A float in meters per second. |
   | `:wind_direction` | A float in degrees. |
   | `:gust_speed` | A float in meters per second. |

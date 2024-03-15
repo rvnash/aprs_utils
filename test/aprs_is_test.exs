@@ -1,7 +1,7 @@
 defmodule Utils.AprsIsTest do
   use ExUnit.Case
-  alias APRSUtils.AprsIs
-  alias APRSUtils.AprsParser
+  alias AprsUtils.AprsIs
+  alias AprsUtils.AprsParser
 
   test "Can connect and unconnect" do
     # user TESTER pass 12705 Balloons 0.1 filter t/poimqstunw
@@ -20,8 +20,8 @@ defmodule Utils.AprsIsTest do
     refute AprsIs.is_connected?(pid)
   end
 
-  @tag timeout: :infinity
-  test "Open a connection and process live data for a few a while" do
+  @tag timeout: 61_000
+  test "Open a connection and process live data for a while" do
     # Note this test just runs for a while printing out bad packets
     # and then stops. Feel free to disable it.
     {:ok, pid} =
@@ -85,8 +85,8 @@ end
 
 defmodule Client do
   @moduledoc false
-  alias APRSUtils.AprsParser
-  @behaviour APRSUtilsIsClient
+  alias AprsUtils.AprsParser
+  @behaviour AprsUtils.AprsIsClient
   def got_packet(packet, packet_count) do
     try do
       case AprsParser.parse(packet) do
